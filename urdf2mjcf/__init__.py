@@ -1,3 +1,3 @@
-__version__ = "0.1.15"
+__version__ = "0.1.16"
 
 from .convert import convert_urdf_to_mjcf as run

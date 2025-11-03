@@ -216,18 +216,18 @@ def remove_unused_mesh(mjcf_path: str | Path) -> None:
         material_name = material.attrib.get("name")
         
         if material_name not in used_materials:
-            logger.warning(f"发现未使用的material: {material_name}")
+            logger.info(f"发现未使用的material: {material_name}")
             materials_to_remove.append(material)
     
     # 删除未使用的mesh元素
     for mesh in meshes_to_remove:
         asset.remove(mesh)
-        logger.warning(f"已删除mesh元素: {mesh.attrib.get('name')}")
+        logger.info(f"已删除mesh元素: {mesh.attrib.get('name')}")
     
     # 删除未使用的material元素
     for material in materials_to_remove:
         asset.remove(material)
-        logger.warning(f"已删除material元素: {material.attrib.get('name')}")
+        logger.info(f"已删除material元素: {material.attrib.get('name')}")
     
     # 检查mesh目录中的所有mesh文件，删除未被引用的文件
     if mesh_dir_path.exists():
@@ -281,6 +281,100 @@ def remove_unused_mesh(mjcf_path: str | Path) -> None:
         for file_path in deleted_files:
             logger.info(f"  - {file_path}")
 
+
+def merge_materials(mjcf_path: str | Path) -> None:
+    """Merge materials with identical attributes in the MJCF file.
+
+    Args:
+        mjcf_path: The path to the MJCF file to process.
+    """
+    mjcf_path = Path(mjcf_path)
+    tree = ET.parse(mjcf_path)
+    root = tree.getroot()
+    
+    # 获取asset元素
+    asset = root.find("asset")
+    if asset is None:
+        logger.warning("No asset element found in MJCF file")
+        return
+    
+    # 合并属性相同的材质
+    # 1. 收集所有材质的属性签名和名称映射
+    material_signature_map = {}  # 签名 -> 第一个材质名称
+    material_name_to_signature = {}  # 材质名称 -> 签名
+    
+    logger.info("开始收集材质信息...")
+    for material in asset.findall("material"):
+        material_name = material.attrib.get("name")
+        if not material_name:
+            continue
+        
+        # 创建材质属性签名(排除name属性)
+        attrib_items = sorted([(k, v) for k, v in material.attrib.items() if k != "name"])
+        signature = str(attrib_items)
+        
+        logger.debug(f"材质 '{material_name}' 的签名: {signature}")
+        
+        material_name_to_signature[material_name] = signature
+        
+        if signature not in material_signature_map:
+            material_signature_map[signature] = material_name
+            logger.debug(f"  -> 首次遇到此签名，设为规范名称")
+        else:
+            # 发现重复的材质
+            canonical_name = material_signature_map[signature]
+            if material_name != canonical_name:
+                logger.info(f"⚠️  发现重复材质: '{material_name}' 与 '{canonical_name}' 属性相同，将合并")
+    
+    # 2. 更新所有引用了重复材质的元素
+    material_rename_map = {}  # 旧名称 -> 新名称
+    for mat_name, signature in material_name_to_signature.items():
+        canonical_name = material_signature_map[signature]
+        if mat_name != canonical_name:
+            material_rename_map[mat_name] = canonical_name
+    
+    logger.info(f"材质合并结果: 共扫描 {len(material_name_to_signature)} 个材质，发现 {len(material_rename_map)} 个重复材质")
+    
+    if material_rename_map:
+        logger.info(f"⚠️  材质重命名映射 (共 {len(material_rename_map)} 项):")
+        for old_name, new_name in material_rename_map.items():
+            logger.info(f"    {old_name} -> {new_name}")
+        
+        # 更新所有geom元素中的material引用
+        for geom in root.iter("geom"):
+            material_name = geom.attrib.get("material")
+            if material_name and material_name in material_rename_map:
+                new_name = material_rename_map[material_name]
+                geom.attrib["material"] = new_name
+                logger.info(f"更新geom的material引用: {material_name} -> {new_name}")
+        
+        # 更新所有site元素中的material引用
+        for site in root.iter("site"):
+            material_name = site.attrib.get("material")
+            if material_name and material_name in material_rename_map:
+                new_name = material_rename_map[material_name]
+                site.attrib["material"] = new_name
+                logger.info(f"更新site的material引用: {material_name} -> {new_name}")
+        
+        # 更新所有body元素中的material引用
+        for body in root.iter("body"):
+            material_name = body.attrib.get("material")
+            if material_name and material_name in material_rename_map:
+                new_name = material_rename_map[material_name]
+                body.attrib["material"] = new_name
+                logger.info(f"更新body的material引用: {material_name} -> {new_name}")
+        
+        # 从asset中删除重复的材质定义
+        for material in list(asset.findall("material")):
+            material_name = material.attrib.get("name")
+            if material_name and material_name in material_rename_map:
+                asset.remove(material)
+                logger.info(f"已删除重复的material元素: {material_name}")
+        
+        # 保存修改后的MJCF文件
+        save_xml(mjcf_path, tree)
+        logger.info(f"✅ 材质合并完成，已更新MJCF文件: {mjcf_path}")
+    
 def remove_empty_or_invalid_meshes(mjcf_path: str | Path) -> None:
     """检测并移除顶点数为0的空mesh，同时删除worldbody中的引用。
 
@@ -382,6 +476,258 @@ def remove_empty_or_invalid_meshes(mjcf_path: str | Path) -> None:
     # 保存修改
     save_xml(mjcf_path, tree)
 
+def merge_geoms_by_material(mjcf_path: str | Path) -> None:
+    """合并同一body内具有相同材质属性的geom及其mesh文件.
+    
+    Args:
+        mjcf_path: The path to the MJCF file to process.
+    """
+    mjcf_path = Path(mjcf_path)
+    tree = ET.parse(mjcf_path)
+    root = tree.getroot()
+    
+    compiler = root.find("compiler")
+    if compiler is None:
+        logger.warning("No compiler element found in MJCF file")
+        return
+    
+    meshdir = compiler.attrib.get("meshdir", ".")
+    mesh_dir_path = mjcf_path.parent / meshdir
+    
+    asset = root.find("asset")
+    if asset is None:
+        logger.warning("No asset element found in MJCF file")
+        return
+    
+    import pymeshlab
+    import numpy as np
+    
+    # 构建mesh名称到文件路径的映射
+    mesh_name_to_file = {}
+    for mesh in asset.findall("mesh"):
+        mesh_name = mesh.attrib.get("name")
+        mesh_file = mesh.attrib.get("file")
+        if mesh_name and mesh_file:
+            # 如果mesh_file已经包含meshdir，则直接使用；否则添加meshdir
+            if mesh_file.startswith(meshdir):
+                mesh_name_to_file[mesh_name] = mjcf_path.parent / mesh_file
+            else:
+                mesh_name_to_file[mesh_name] = mesh_dir_path / mesh_file
+    
+    # 遍历所有body
+    merged_count = 0
+    for body in root.iter("body"):
+        body_name = body.attrib.get("name", "unnamed")
+        
+        # 收集该body下所有的geom，按材质属性分组
+        material_to_geoms = {}  # 材质签名 -> [(geom_element, mesh_name, pose)]
+        
+        for geom in list(body.findall("geom")):
+            if geom.attrib.get("type") != "mesh":
+                continue
+            
+            mesh_name = geom.attrib.get("mesh")
+            if not mesh_name:
+                continue
+            
+            # 创建材质属性签名
+            material_attribs = []
+            for key in ["material", "rgba", "class"]:
+                if key in geom.attrib:
+                    material_attribs.append((key, geom.attrib[key]))
+            
+            material_signature = str(sorted(material_attribs))
+            
+            # 获取geom的位姿
+            pos = geom.attrib.get("pos", "0 0 0")
+            quat = geom.attrib.get("quat", "1 0 0 0")
+            euler = geom.attrib.get("euler", None)
+            
+            if material_signature not in material_to_geoms:
+                material_to_geoms[material_signature] = []
+            
+            material_to_geoms[material_signature].append({
+                "element": geom,
+                "mesh_name": mesh_name,
+                "pos": np.array([float(x) for x in pos.split()]),
+                "quat": np.array([float(x) for x in quat.split()]) if euler is None else None,
+                "euler": np.array([float(x) for x in euler.split()]) if euler is not None else None,
+                "material_attribs": material_attribs
+            })
+        
+        # 对每个材质组，如果有多个geom，则合并
+        for material_sig, geom_list in material_to_geoms.items():
+            if len(geom_list) <= 1:
+                continue  # 只有一个geom，无需合并
+            
+            logger.info(f"Body '{body_name}': 发现 {len(geom_list)} 个相同材质的geom，准备合并")
+            
+            try:
+                # 创建合并后的mesh - 先加载所有mesh并应用变换
+                all_transformed_meshes = []
+                
+                for i, geom_info in enumerate(geom_list):
+                    mesh_name = geom_info["mesh_name"]
+                    mesh_file = mesh_name_to_file.get(mesh_name)
+                    
+                    if not mesh_file or not mesh_file.exists():
+                        logger.warning(f"  Mesh文件不存在: {mesh_name}")
+                        continue
+                    
+                    # 加载mesh
+                    temp_ms = pymeshlab.MeshSet()
+                    temp_ms.load_new_mesh(str(mesh_file))
+                    
+                    # 应用变换
+                    pos = geom_info["pos"]
+                    
+                    # 构建旋转矩阵
+                    if geom_info["euler"] is not None:
+                        # 从欧拉角构建旋转矩阵 (XYZ顺序)
+                        euler = geom_info["euler"]
+                        # MuJoCo使用的是extrinsic XYZ (相当于intrinsic ZYX)
+                        cx, cy, cz = np.cos(euler)
+                        sx, sy, sz = np.sin(euler)
+                        
+                        # 旋转矩阵: Rz * Ry * Rx
+                        rot_matrix = np.array([
+                            [cy*cz, -cy*sz, sy],
+                            [sx*sy*cz + cx*sz, -sx*sy*sz + cx*cz, -sx*cy],
+                            [-cx*sy*cz + sx*sz, cx*sy*sz + sx*cz, cx*cy]
+                        ])
+                    elif geom_info["quat"] is not None:
+                        # 从四元数构建旋转矩阵 (w, x, y, z)
+                        quat = geom_info["quat"]
+                        w, x, y, z = quat
+                        
+                        rot_matrix = np.array([
+                            [1 - 2*(y*y + z*z), 2*(x*y - w*z), 2*(x*z + w*y)],
+                            [2*(x*y + w*z), 1 - 2*(x*x + z*z), 2*(y*z - w*x)],
+                            [2*(x*z - w*y), 2*(y*z + w*x), 1 - 2*(x*x + y*y)]
+                        ])
+                    else:
+                        rot_matrix = np.eye(3)
+                    
+                    # 构建4x4变换矩阵
+                    transform_matrix = np.eye(4)
+                    transform_matrix[:3, :3] = rot_matrix
+                    transform_matrix[:3, 3] = pos
+                    
+                    # 手动应用变换到顶点
+                    vertices = temp_ms.current_mesh().vertex_matrix()
+                    faces = temp_ms.current_mesh().face_matrix()
+                    
+                    vertices_homo = np.hstack([vertices, np.ones((vertices.shape[0], 1))])
+                    transformed_vertices = (transform_matrix @ vertices_homo.T).T[:, :3]
+                    
+                    # 保存变换后的顶点和面
+                    all_transformed_meshes.append({
+                        'vertices': transformed_vertices,
+                        'faces': faces
+                    })
+                    
+                    logger.debug(f"  Mesh {i}: {len(transformed_vertices)} 顶点, {len(faces)} 面")
+                
+                if len(all_transformed_meshes) == 0:
+                    logger.warning(f"  Body '{body_name}': 无法加载任何mesh，跳过合并")
+                    continue
+                
+                # 合并所有mesh的顶点和面
+                vertex_offset = 0
+                all_vertices = []
+                all_faces = []
+                
+                for mesh_data in all_transformed_meshes:
+                    all_vertices.append(mesh_data['vertices'])
+                    # 更新面索引（添加顶点偏移）
+                    adjusted_faces = mesh_data['faces'] + vertex_offset
+                    all_faces.append(adjusted_faces)
+                    vertex_offset += len(mesh_data['vertices'])
+                
+                combined_vertices = np.vstack(all_vertices)
+                combined_faces = np.vstack(all_faces)
+                
+                logger.info(f"  合并后: {len(combined_vertices)} 顶点, {len(combined_faces)} 面")
+                
+                # 创建合并后的mesh
+                merged_ms = pymeshlab.MeshSet()
+                merged_mesh = pymeshlab.Mesh(combined_vertices, combined_faces)
+                merged_ms.add_mesh(merged_mesh)
+                
+                # 生成新的mesh文件名 - 保存在第一个mesh文件所在的文件夹
+                first_geom = geom_list[0]
+                original_mesh_name = first_geom["mesh_name"]
+                original_mesh_file = mesh_name_to_file.get(original_mesh_name)
+                
+                # 获取原mesh文件所在的文件夹
+                if original_mesh_file and original_mesh_file.exists():
+                    target_dir = original_mesh_file.parent
+                else:
+                    # 如果找不到原文件，则使用meshdir
+                    target_dir = mesh_dir_path
+                
+                merged_mesh_name = f"{body_name}_merged_{original_mesh_name.split('_')[0]}"
+                merged_mesh_file = target_dir / f"{merged_mesh_name}.obj"
+                
+                # 确保文件名唯一
+                counter = 1
+                while merged_mesh_file.exists():
+                    merged_mesh_name = f"{body_name}_merged_{original_mesh_name.split('_')[0]}_{counter}"
+                    merged_mesh_file = target_dir / f"{merged_mesh_name}.obj"
+                    counter += 1
+                
+                # 保存合并后的mesh
+                merged_ms.save_current_mesh(str(merged_mesh_file))
+                logger.info(f"  保存合并后的mesh: {merged_mesh_file}")
+                
+                # 计算相对于MJCF文件的路径
+                mesh_file_relative = str(merged_mesh_file.relative_to(mjcf_path.parent))
+                
+                # 在asset中添加新的mesh定义
+                new_mesh_element = ET.Element("mesh", 
+                    name=merged_mesh_name,
+                    file=mesh_file_relative
+                )
+                asset.append(new_mesh_element)
+                
+                # 更新第一个geom，删除其他geom
+                first_geom_element = geom_list[0]["element"]
+                first_geom_element.attrib["mesh"] = merged_mesh_name
+                
+                # 确保材质属性被保留（从material_attribs中恢复）
+                material_attribs = geom_list[0]["material_attribs"]
+                if material_attribs:
+                    logger.info(f"  保留材质属性:")
+                    for key, value in material_attribs:
+                        first_geom_element.attrib[key] = value
+                        logger.info(f"    {key} = {value}")
+                
+                # 重置位姿为原点（因为已经应用到mesh上了）
+                first_geom_element.attrib["pos"] = "0 0 0"
+                if "quat" in first_geom_element.attrib:
+                    first_geom_element.attrib["quat"] = "1 0 0 0"
+                if "euler" in first_geom_element.attrib:
+                    del first_geom_element.attrib["euler"]
+                
+                # 删除其他geom
+                for i in range(1, len(geom_list)):
+                    body.remove(geom_list[i]["element"])
+                
+                merged_count += 1
+                logger.info(f"  成功合并 {len(geom_list)} 个geom为 1 个")
+                
+            except Exception as e:
+                logger.error(f"  合并body '{body_name}' 的geom时出错: {e}")
+                import traceback
+                traceback.print_exc()
+                continue
+    
+    if merged_count > 0:
+        save_xml(mjcf_path, tree)
+        logger.info(f"✅ 合并完成: 共处理 {merged_count} 组geom")
+    else:
+        logger.info("未找到需要合并的geom")
+
 def update_mesh(mjcf_path: str | Path, max_vertices: int = 1000000) -> None:
     """Update the mesh of the MJCF file.
 
@@ -391,7 +737,8 @@ def update_mesh(mjcf_path: str | Path, max_vertices: int = 1000000) -> None:
     remove_empty_or_invalid_meshes(mjcf_path)
     simplify_mesh_assets(mjcf_path, max_vertices)
     collision_to_stl(mjcf_path)
-    exit(0)
+    merge_materials(mjcf_path)
+    merge_geoms_by_material(mjcf_path)
     remove_unused_mesh(mjcf_path)
 
 def main() -> None:

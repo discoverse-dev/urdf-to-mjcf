@@ -824,10 +824,10 @@ def convert_urdf_to_mjcf(
     if not collision_only:
         print(f"Split OBJ files by materials...")
         split_obj_by_materials(mjcf_path)  # Split OBJ files by materials
-        print(f"Checking shell meshes...")
-        check_shell_meshes(mjcf_path)
     print("Updating meshes...")
     update_mesh(mjcf_path, max_vertices)
+    print(f"Checking shell meshes...")
+    check_shell_meshes(mjcf_path)
 
     # Apply post-processing steps
     if metadata.angle != "radian":
