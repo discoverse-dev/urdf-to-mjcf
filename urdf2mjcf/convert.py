@@ -27,6 +27,7 @@ from urdf2mjcf.postprocess.explicit_floor_contacts import add_explicit_floor_con
 from urdf2mjcf.postprocess.make_degrees import make_degrees
 from urdf2mjcf.postprocess.remove_redundancies import remove_redundancies
 from urdf2mjcf.postprocess.check_shell import check_shell_meshes
+from urdf2mjcf.postprocess.deduplicate_meshes import deduplicate_meshes
 from urdf2mjcf.utils import save_xml
 
 from urdf2mjcf.geometry import (
@@ -830,6 +831,8 @@ def convert_urdf_to_mjcf(
     move_mesh_scale(mjcf_path)
     print(f"Checking shell meshes...")
     check_shell_meshes(mjcf_path)
+    print(f"Deduplicating mesh assets...")
+    deduplicate_meshes(mjcf_path)
 
     # Apply post-processing steps
     if metadata.angle != "radian":
