@@ -1,7 +1,8 @@
 *.DS_Store
 output/
 tests/
-**mjcf/
+**/mjcf/
+!urdf2mjcf/
 **merged_model/
 align_stp/models/**
 *.stp

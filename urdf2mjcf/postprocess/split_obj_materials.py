@@ -251,6 +251,7 @@ def split_obj_by_materials(mjcf_path: str | Path) -> None:
     all_mtl_materials = {}
     mesh_splits = {}  # mesh_name -> [(submesh_name, submesh_file), ...]
     mesh_single_materials = {}  # mesh_name -> material_name (for single mesh with multiple materials)
+    processed_obj_files = {}  # obj_file_path -> (obj_materials, split_info, single_material)
     
     for mesh_name, mesh_file in obj_meshes.items():
         obj_file_path = mesh_dir / mesh_file
@@ -259,13 +260,27 @@ def split_obj_by_materials(mjcf_path: str | Path) -> None:
             logger.warning(f"OBJ file {obj_file_path} does not exist, skipping")
             continue
         
-        # Process this OBJ file
+        # Check if we've already processed this OBJ file
+        if obj_file_path in processed_obj_files:
+            logger.info(f"OBJ file {obj_file_path} already processed, reusing results")
+            obj_materials, split_info, single_material = processed_obj_files[obj_file_path]
+            all_mtl_materials.update(obj_materials)
+            if split_info is not None:
+                mesh_splits[mesh_name] = split_info
+            if single_material is not None:
+                mesh_single_materials[mesh_name] = single_material
+            continue
+        
+        # Process this OBJ file for the first time
         obj_materials = process_obj_materials(obj_file_path, files_to_delete)
         all_mtl_materials.update(obj_materials)
         
         # Check for split meshes in the same directory as the original OBJ file
         obj_stem = obj_file_path.stem
         split_dir = obj_file_path.parent / obj_stem
+        
+        split_info = None
+        single_material = None
         
         if split_dir.exists():
             submeshes = list(split_dir.glob(f"{obj_stem}_*.obj"))
@@ -279,6 +294,7 @@ def split_obj_by_materials(mjcf_path: str | Path) -> None:
                     submesh_info.append((submesh_stem, str(submesh_rel_path)))
                 
                 mesh_splits[mesh_name] = submesh_info
+                split_info = submesh_info
                 logger.info(f"Found {len(submesh_info)} split meshes for {mesh_name}")
         
         # Handle single mesh with multiple materials case
@@ -306,7 +322,11 @@ def split_obj_by_materials(mjcf_path: str | Path) -> None:
                 logger.warning(f"Could not determine actual material used in {mesh_name}, using first material: {actual_material}")
             
             mesh_single_materials[mesh_name] = actual_material
+            single_material = actual_material
             logger.info(f"Single mesh {mesh_name} with multiple materials will use material: {actual_material}")
+        
+        # Cache the results for this OBJ file
+        processed_obj_files[obj_file_path] = (obj_materials, split_info, single_material)
     
     # Update asset section - add new mesh assets for submeshes
     for mesh_name, submesh_info in mesh_splits.items():
