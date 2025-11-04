@@ -20,6 +20,7 @@ from urdf2mjcf.postprocess.move_mesh_scale import move_mesh_scale
 from urdf2mjcf.postprocess.convex_collision import convex_collision
 from urdf2mjcf.postprocess.convex_decomposition import convex_decomposition
 from urdf2mjcf.postprocess.split_obj_materials import split_obj_by_materials
+from urdf2mjcf.postprocess.collision_to_stl import collision_to_stl
 from urdf2mjcf.postprocess.base_joint import fix_base_joint
 from urdf2mjcf.postprocess.collisions import update_collisions
 from urdf2mjcf.postprocess.explicit_floor_contacts import add_explicit_floor_contacts
@@ -235,7 +236,7 @@ def convert_urdf_to_mjcf(
         workspace_search_paths.append(package_root)
         logger.debug(f"Found package root from URDF location: {package_root}")
 
-    def handle_geom_element(geom_elem: ET.Element | None, default_size: str) -> GeomElement:
+    def handle_geom_element(geom_elem: ET.Element | None, default_size: str, prefix: str="") -> GeomElement:
         """Helper to handle geometry elements safely.
 
         Args:
@@ -277,7 +278,9 @@ def convert_urdf_to_mjcf(
         if mesh_elem is not None:
             filename = mesh_elem.attrib.get("filename")
             if filename is not None:
-                mesh_name = Path(filename).name
+                mesh_name = Path(filename).stem
+                if prefix:
+                    mesh_name = f"{prefix}_{mesh_name}"
                 if mesh_name not in mesh_assets:
                     mesh_assets[mesh_name] = filename
                         
@@ -381,6 +384,9 @@ def convert_urdf_to_mjcf(
                 rpy = origin_inertial.attrib.get("rpy", "0 0 0")
                 if rpy != "0 0 0":
                     inertial_elem.attrib["quat"] = rpy_to_quat(rpy)
+            else:
+                inertial_elem.attrib["pos"] = "0 0 0"
+                inertial_elem.attrib["quat"] = "1 0 0 0"
             mass_elem = inertial.find("mass")
             if mass_elem is not None:
                 mass = mass_elem.attrib.get("value", "0")
@@ -427,7 +433,7 @@ def convert_urdf_to_mjcf(
             # Get material from collision element
             collision_geom_elem: ET.Element | None = collision.find("geometry")
             if collision_geom_elem is not None:
-                geom = handle_geom_element(collision_geom_elem, "1 1 1")
+                geom = handle_geom_element(collision_geom_elem, "1 1 1", prefix="collision")
                 collision_geom_attrib["type"] = geom.type
                 if geom.type == "mesh":
                     if geom.mesh is not None:
@@ -813,6 +819,8 @@ def convert_urdf_to_mjcf(
         print(f"Convex hull generation...")
         convex_collision(mjcf_path)
 
+    print(f"Converting collision geometries to STL...")
+    collision_to_stl(mjcf_path)
     if not collision_only:
         print(f"Split OBJ files by materials...")
         split_obj_by_materials(mjcf_path)  # Split OBJ files by materials

@@ -28,13 +28,30 @@ class GeomElement:
     scale: str | None = None
     mesh: str | None = None
 
-# Format each value: 4 decimal places, remove trailing zeros and decimal point
+# 将数值格式化为最多保留4位小数，去除末尾的多余0和小数点，且将 -0 统一为 0
 def format_value(val: float) -> str:
+    """格式化数值为字符串。
+
+    行为：
+    - 使用四位小数精度进行四舍五入。
+    - 删除末尾多余的零。
+    - 若结果以小数点结尾则删除小数点。
+    - 将 "-0" 或 "-0.0000" 规范为 "0"。
+
+    Args:
+        val: 要格式化的浮点数。
+
+    Returns:
+        处理后的字符串表示。
+    """
+    # 先用四位小数进行格式化（确保四舍五入）
     formatted = f"{val:.4f}"
-    # Remove trailing zeros
-    formatted = formatted.rstrip('0')
-    # Remove trailing decimal point
-    formatted = formatted.rstrip('.')
+    # 去除末尾的零
+    if '.' in formatted:
+        formatted = formatted.rstrip('0').rstrip('.')
+    # 规范 -0 -> 0
+    if formatted in ('-0', '-0.0', '-0.00', '-0.000', '-0.0000', ''):
+        return '0'
     return formatted
 
 def parse_vector(s: str) -> list[float]:

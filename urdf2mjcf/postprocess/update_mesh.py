@@ -76,61 +76,6 @@ def simplify_mesh_assets(mjcf_path: str | Path, max_vertices: int) -> None:
 
     save_xml(mjcf_path, root)
 
-def collision_to_stl(mjcf_path: str | Path) -> None:
-    """Convert collision meshes to STL format in the MJCF file.
-
-    Args:
-        mjcf_path: The path to the MJCF file to process.
-    """
-    tree = ET.parse(mjcf_path)
-    root = tree.getroot()
-
-    compiler = root.find("compiler")
-    mesh_dir_path = mjcf_path.parent / compiler.attrib["meshdir"]
-    asset = root.find("asset")
-    
-    asset_to_add = []
-    for geom in root.iter("geom"):
-        if geom.attrib.get("type") == "mesh":
-            mesh_name = geom.attrib.get("mesh")
-            class_name = geom.attrib.get("class")
-            if class_name == "collision":
-                for mesh in asset.findall("mesh"):
-                    if mesh.attrib.get("name") == mesh_name:
-                        mesh_file = mesh_dir_path / mesh.attrib["file"]
-                        if not mesh_file.exists():
-                            logger.error(f"Mesh file {mesh_file} does not exist.")
-                            raise FileNotFoundError(f"Mesh file {mesh_file} does not exist.")
-
-                        if Path(mesh_file).suffix.lower() != ".stl":
-                            logger.info(f"Converting collision mesh {mesh_name} to STL format.")
-                            # 转换为STL格式
-                            stl_file = mesh_file.with_suffix('.stl')
-                            if not stl_file.exists():
-                                try:
-                                    import pymeshlab
-                                    ms = pymeshlab.MeshSet()
-                                    ms.load_new_mesh(str(mesh_file))
-                                    ms.save_current_mesh(str(stl_file))
-                                    logger.info(f"Converted {mesh_file} to {stl_file}")
-                                except Exception as e:
-                                    logger.error(f"Error converting {mesh_file} to STL: {e}")
-                            # 更新geom的mesh属性
-                            geom.attrib["mesh"] = Path(mesh_name).with_suffix('.stl').name
-                            logger.info(f"Updated geom {geom.attrib.get('name')} to use mesh {stl_file.name}")
-                            # 更新mesh的file属性
-                            # mesh.attrib["name"] = Path(mesh_name).with_suffix('.stl').name
-                            # mesh.attrib["file"] = str(stl_file.relative_to(mesh_dir_path))
-                            asset_to_add.append((geom.attrib["mesh"], str(stl_file.relative_to(mesh_dir_path))))
-
-                            logger.info(f"Updated mesh {mesh.attrib.get('name')} to file {mesh.attrib.get('file')}")
-                        break
-    
-    for a in asset_to_add:
-        asset.append(ET.Element("mesh", name=a[0], file=a[1]))
-
-    save_xml(mjcf_path, tree)
-
 def remove_unused_mesh(mjcf_path: str | Path) -> None:
     """Remove the unused mesh of the MJCF file.
 
@@ -737,7 +682,6 @@ def update_mesh(mjcf_path: str | Path, max_vertices: int = 1000000) -> None:
     """
     remove_empty_or_invalid_meshes(mjcf_path)
     simplify_mesh_assets(mjcf_path, max_vertices)
-    collision_to_stl(mjcf_path)
     merge_materials(mjcf_path)
     merge_geoms_by_material(mjcf_path)
     remove_unused_mesh(mjcf_path)
