@@ -421,6 +421,52 @@ def remove_empty_or_invalid_meshes(mjcf_path: str | Path) -> None:
     # 保存修改
     save_xml(mjcf_path, tree)
 
+
+def remove_empty_mesh_dirs(mjcf_path: str | Path) -> None:
+    """Recursively remove empty directories under the meshdir declared in MJCF.
+
+    This will walk the meshdir bottom-up and remove any empty subdirectories.
+    The meshdir root itself will not be removed.
+    """
+    mjcf_path = Path(mjcf_path)
+    try:
+        tree = ET.parse(mjcf_path)
+        root = tree.getroot()
+    except Exception:
+        logger.debug("无法解析 MJCF 文件以获取 meshdir，跳过空文件夹清理")
+        return
+
+    compiler = root.find("compiler")
+    if compiler is None:
+        logger.debug("No compiler element found in MJCF file; skipping empty directory cleanup")
+        return
+
+    meshdir = compiler.attrib.get("meshdir", ".")
+    mesh_dir_path = mjcf_path.parent / meshdir
+    if not mesh_dir_path.exists():
+        logger.debug(f"Mesh dir {mesh_dir_path} does not exist; skipping cleanup")
+        return
+
+    removed = []
+    # Walk bottom-up so subdirectories are processed before their parents
+    for dirpath, dirnames, filenames in os.walk(mesh_dir_path, topdown=False):
+        p = Path(dirpath)
+        # Don't remove the meshdir root itself
+        if p == mesh_dir_path:
+            continue
+        try:
+            # If directory is empty (no files and no subdirectories), remove it
+            if not any(p.iterdir()):
+                p.rmdir()
+                removed.append(str(p))
+        except Exception as e:
+            logger.debug(f"Failed to remove directory {p}: {e}")
+
+    if removed:
+        logger.info(f"Removed {len(removed)} empty directories under {mesh_dir_path}")
+        for d in removed:
+            logger.info(f"  - {d}")
+
 def merge_geoms_by_material(mjcf_path: str | Path) -> None:
     """合并同一body内具有相同材质属性的geom及其mesh文件.
     
@@ -685,6 +731,11 @@ def update_mesh(mjcf_path: str | Path, max_vertices: int = 1000000) -> None:
     merge_materials(mjcf_path)
     merge_geoms_by_material(mjcf_path)
     remove_unused_mesh(mjcf_path)
+    # 最后清理 meshdir 下的空文件夹（递归），但不删除 meshdir 根目录本身
+    try:
+        remove_empty_mesh_dirs(mjcf_path)
+    except Exception as e:
+        logger.warning(f"清理 meshdir 空文件夹时发生错误: {e}")
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Updates the mesh of the MJCF file.")

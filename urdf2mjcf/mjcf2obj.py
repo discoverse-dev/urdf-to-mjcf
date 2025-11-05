@@ -194,6 +194,33 @@ def _material_properties(
 	return props
 
 
+def _common_relative_dir(paths: List[Path], root: Path) -> Path:
+	"""Compute the deepest common subdirectory of the given paths relative to root.
+
+	If none of the paths are under root, returns Path('.') (no subdirectory).
+	"""
+	rel_parts: List[List[str]] = []
+	for p in paths:
+		try:
+			rel = p.parent.resolve().relative_to(root.resolve())
+		except Exception:
+			# Skip paths not under root
+			continue
+		rel_parts.append(list(rel.parts))
+
+	if not rel_parts:
+		return Path(".")
+
+	# Find common prefix of parts
+	common: List[str] = []
+	for parts in zip(*rel_parts):
+		if all(segment == parts[0] for segment in parts):
+			common.append(parts[0])
+		else:
+			break
+
+	return Path(*common) if common else Path(".")
+
 
 def _load_mesh(
 	mesh_path: Path,
@@ -282,6 +309,7 @@ def _export_body(
 	body_elem: ET.Element,
 	*,
 	output_dir: Path,
+	mesh_root: Path,
 	mesh_assets: Dict[str, Path],
 	material_assets: Dict[str, Dict[str, str]],
 	texture_assets: Dict[str, Dict[str, str]],
@@ -304,8 +332,15 @@ def _export_body(
 	exported = 0
 	if geoms:
 		safe_body_name = _sanitize_name(body_name, "body", body_name_usage)
-		obj_path = output_dir / f"{safe_body_name}.obj"
-		mtl_path = output_dir / f"{safe_body_name}.mtl"
+
+		# 保持原有的文件路径结构：将导出文件放在 output_dir 下，
+		# 并附加所有来源 mesh 文件在 mesh_root 下的共同相对子目录。
+		source_paths: List[Path] = [g["mesh_path"] for g in geoms]  # type: ignore[index]
+		common_rel = _common_relative_dir(source_paths, mesh_root)
+		target_dir = (output_dir / common_rel).resolve()
+
+		obj_path = target_dir / f"{safe_body_name}.obj"
+		mtl_path = target_dir / f"{safe_body_name}.mtl"
 
 		vertices: List[Tuple[float, float, float]] = []
 		faces: List[Tuple[int, int, int]] = []
@@ -336,6 +371,7 @@ def _export_body(
 		exported += _export_body(
 			child,
 			output_dir=output_dir,
+			mesh_root=mesh_root,
 			mesh_assets=mesh_assets,
 			material_assets=material_assets,
 			texture_assets=texture_assets,
@@ -351,6 +387,9 @@ def export_mjcf_bodies(mjcf_path: Path, output_dir: Path) -> None:
 	root = tree.getroot()
 
 	mesh_assets, material_assets, texture_assets = _gather_assets(root, mjcf_path)
+	compiler = root.find("compiler")
+	meshdir_attr = compiler.attrib.get("meshdir", ".") if compiler is not None else "."
+	mesh_root = (mjcf_path.parent / meshdir_attr).resolve()
 	worldbody = root.find("worldbody")
 	if worldbody is None:
 		raise ValueError("MJCF file does not contain a <worldbody> element")
@@ -363,6 +402,7 @@ def export_mjcf_bodies(mjcf_path: Path, output_dir: Path) -> None:
 		total_exported += _export_body(
 			body_elem,
 			output_dir=output_dir,
+			mesh_root=mesh_root,
 			mesh_assets=mesh_assets,
 			material_assets=material_assets,
 			texture_assets=texture_assets,
