@@ -562,17 +562,6 @@ def convert_urdf_to_mjcf(
     if robot_body is None:
         raise ValueError("Failed to build robot body")
 
-    # Gets the minimum z coordinate of the robot body.
-    min_z: float = compute_min_z(robot_body)
-    computed_offset: float = -min_z + metadata.height_offset
-    logger.info("Auto-detected base offset: %s (min z = %s)", computed_offset, min_z)
-
-    # Moves the robot body to the computed offset.
-    body_pos = robot_body.attrib.get("pos", "0 0 0")
-    body_pos = [float(x) for x in body_pos.split()]
-    body_pos[2] += computed_offset
-    robot_body.attrib["pos"] = " ".join(f"{format_value(x)}" for x in body_pos)
-
     robot_body.attrib["childclass"] = ROBOT_CLASS
     worldbody.append(robot_body)
 
@@ -713,8 +702,11 @@ def convert_urdf_to_mjcf(
     add_weld_constraints(mjcf_root, metadata)
 
     # Copy mesh files with special handling for OBJ files
+    # Also build a mapping from mesh_name to actual target file path for compute_min_z
     processed_files = set()
     non_existing_meshes = set()
+    mesh_file_paths: dict[str, Path] = {}  # mesh_name -> actual file path
+    
     for mesh_name, filename in mesh_assets.items():
         # Determine source path based on whether it's a package:// URL or regular path
         source_path: Path | None = None
@@ -764,6 +756,8 @@ def convert_urdf_to_mjcf(
                         logger.debug(f"Copied mesh file: {source_path} -> {target_path}")
                     except Exception as e:
                         logger.warning(f"Failed to copy mesh file {source_path} to {target_path}: {e}")
+            # Store the target path for this mesh
+            mesh_file_paths[mesh_name] = target_path
         elif source_path:
             logger.warning(f"Mesh file not found: {source_path}")
 
@@ -807,6 +801,19 @@ def convert_urdf_to_mjcf(
         # mesh_name already should be the stem (without .obj), 
         # so it will match the geom references
         ET.SubElement(asset_elem, "mesh", attrib={"name": mesh_name, "file": filename})
+
+    # Compute minimum z coordinate and adjust robot base position
+    # This is done after all mesh assets are copied so we can load them
+    print(f"Computing minimum z coordinate from geometries...")
+    min_z: float = compute_min_z(robot_body, mesh_file_paths=mesh_file_paths)
+    computed_offset: float = -min_z + metadata.height_offset
+    logger.info("Auto-detected base offset: %s (min z = %s)", computed_offset, min_z)
+
+    # Adjust the robot body position based on computed offset
+    body_pos = robot_body.attrib.get("pos", "0 0 0")
+    body_pos = [float(x) for x in body_pos.split()]
+    body_pos[2] += computed_offset
+    robot_body.attrib["pos"] = " ".join(f"{format_value(x)}" for x in body_pos)
 
     # Save the initial MJCF file
     print(f"Saving initial MJCF file to {mjcf_path}")

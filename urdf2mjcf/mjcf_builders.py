@@ -247,8 +247,8 @@ def add_assets(root: ET.Element, materials: dict[str, str], mtl_materials: dict[
         for material in mtl_materials.values():
             material_attrib = {
                 "name": material.name,
-                "specular": material.mjcf_specular(),
-                "shininess": material.mjcf_shininess(),
+                # "specular": material.mjcf_specular(),
+                # "shininess": material.mjcf_shininess(),
             }
             
             if material.map_Kd is not None:

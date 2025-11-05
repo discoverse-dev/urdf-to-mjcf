@@ -1,8 +1,12 @@
 """Geometry processing and mathematical transformation utilities."""
 
 import math
+import logging
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class ParsedJointParams:
@@ -124,7 +128,12 @@ def mat_mult(mat_a: list[list[float]], mat_b: list[list[float]]) -> list[list[fl
     return result
 
 
-def compute_min_z(body: ET.Element, parent_transform: list[list[float]] | None = None) -> float:
+def compute_min_z(
+    body: ET.Element, 
+    parent_transform: list[list[float]] | None = None,
+    mesh_file_paths: dict[str, Path] | None = None,
+    mesh_cache: dict[str, float] | None = None
+) -> float:
     """Recursively computes the minimum Z value in the world frame.
 
     This is used to compute the starting height of the robot.
@@ -132,6 +141,8 @@ def compute_min_z(body: ET.Element, parent_transform: list[list[float]] | None =
     Args:
         body: The current body element.
         parent_transform: The transform of the parent body.
+        mesh_file_paths: Dictionary mapping mesh names to their actual file paths.
+        mesh_cache: Cache for mesh min_z values to avoid reloading.
 
     Returns:
         The minimum Z value in the world frame.
@@ -143,6 +154,9 @@ def compute_min_z(body: ET.Element, parent_transform: list[list[float]] | None =
             [0.0, 0.0, 1.0, 0.0],
             [0.0, 0.0, 0.0, 1.0],
         ]
+    if mesh_cache is None:
+        mesh_cache = {}
+    
     pos_str: str = body.attrib.get("pos", "0 0 0")
     quat_str: str = body.attrib.get("quat", "1 0 0 0")
     body_tf: list[list[float]] = mat_mult(parent_transform, build_transform(pos_str, quat_str))
@@ -170,17 +184,84 @@ def compute_min_z(body: ET.Element, parent_transform: list[list[float]] | None =
                 r = float(child.attrib.get("size", "0"))
                 candidate = z - r
             elif geom_type == "mesh":
-                candidate = z - 0.2
+                # Load mesh and compute actual min_z
+                mesh_name = child.attrib.get("mesh")
+                if mesh_name and mesh_file_paths and mesh_name in mesh_file_paths:
+                    if mesh_name not in mesh_cache:
+                        mesh_file_path = mesh_file_paths[mesh_name]
+                        mesh_min_z = _compute_mesh_min_z(mesh_file_path, child.attrib.get("scale"))
+                        mesh_cache[mesh_name] = mesh_min_z
+                    else:
+                        mesh_min_z = mesh_cache[mesh_name]
+                    
+                    candidate = z + mesh_min_z
+                else:
+                    # Fallback to conservative estimate if mesh not available
+                    candidate = z - 0.2
+                    if mesh_name:
+                        logger.warning(f"Mesh {mesh_name} not found in mesh_file_paths, using fallback estimate")
             else:
                 candidate = z
 
             local_min_z = min(candidate, local_min_z)
 
         elif child.tag == "body":
-            child_min: float = compute_min_z(child, body_tf)
+            child_min: float = compute_min_z(child, body_tf, mesh_file_paths, mesh_cache)
             local_min_z = min(child_min, local_min_z)
 
     return local_min_z
+
+
+def _compute_mesh_min_z(mesh_file_path: Path, scale_str: str | None = None) -> float:
+    """Compute the minimum Z value from a mesh file.
+    
+    Args:
+        mesh_file_path: Full path to the mesh file.
+        scale_str: Optional scale string (e.g., "1 1 1").
+        
+    Returns:
+        The minimum Z value in the mesh's local frame.
+    """
+    try:
+        import trimesh
+    except ImportError:
+        logger.warning("trimesh not available, using fallback for mesh min_z computation")
+        return -0.2
+    
+    if not mesh_file_path.exists():
+        logger.warning(f"compute mesh z min: Mesh file not found: {mesh_file_path}")
+        return 0.0
+
+    logger.info(f"Loading mesh file: {mesh_file_path}")
+
+    try:
+        # Load the mesh
+        mesh = trimesh.load(str(mesh_file_path), force='mesh')
+        
+        # Handle scale if provided
+        if scale_str:
+            scale_vals = list(map(float, scale_str.split()))
+            if len(scale_vals) == 3:
+                scale_matrix = [[scale_vals[0], 0, 0, 0],
+                               [0, scale_vals[1], 0, 0],
+                               [0, 0, scale_vals[2], 0],
+                               [0, 0, 0, 1]]
+                mesh.apply_transform(scale_matrix)
+            elif len(scale_vals) == 1:
+                mesh.apply_scale(scale_vals[0])
+        
+        # Get minimum Z coordinate from vertices
+        if hasattr(mesh, 'vertices') and len(mesh.vertices) > 0:
+            min_z = float(mesh.vertices[:, 2].min())
+            logger.info(f"Computed min_z for mesh '{mesh_file_path.name}': {min_z}")
+            return min_z
+        else:
+            logger.warning(f"Mesh '{mesh_file_path.name}' has no vertices")
+            return 0.0
+
+    except Exception as e:
+        logger.warning(f"Failed to load mesh '{mesh_file_path.name}': {e}")
+        return 0.0
 
 
 def rpy_to_quat(rpy_str: str) -> str:

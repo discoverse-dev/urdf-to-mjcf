@@ -196,7 +196,7 @@ def remove_unused_mesh(mjcf_path: str | Path) -> None:
                 relative_path_str = str(relative_path).replace('\\', '/')  # 统一使用正斜杠
                 
                 if relative_path_str not in referenced_files:
-                    logger.warning(f"发现未被引用的文件: {relative_path_str}")
+                    logger.info(f"发现未被引用的文件: {relative_path_str}")
                     mesh_files_to_remove.append(mesh_file_path)
 
     # 删除文件

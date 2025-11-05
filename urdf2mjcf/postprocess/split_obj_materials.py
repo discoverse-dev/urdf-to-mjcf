@@ -73,13 +73,7 @@ def process_obj_materials(obj_file: Path, files_to_delete: list = None) -> dict[
         # Skip processing if there's only one material
         if len(sub_mtls) <= 1:
             logger.info(f"OBJ file {obj_file.name} has only one material, skipping split processing")
-            mesh = trimesh.load(
-                obj_file,
-                split_object=True,
-                group_material=True,  # Key parameter: group by material
-                process=False,
-                maintain_order=False,
-            )
+            mesh = trimesh.load_scene(obj_file)
             mesh.export(obj_file.as_posix(), mtl_name=mtl_file.name)
             # Don't delete MTL here - it might be used by other OBJs
             return materials
@@ -95,14 +89,7 @@ def process_obj_materials(obj_file: Path, files_to_delete: list = None) -> dict[
         # Now process the OBJ file to split by materials
         try:
             # Load the OBJ file with material grouping
-            mesh = trimesh.load(
-                obj_file,
-                split_object=True,
-                group_material=True,  # Key parameter: group by material
-                process=False,
-                maintain_order=False,
-            )
-            
+            mesh = trimesh.load_scene(obj_file)
             
             if isinstance(mesh, trimesh.base.Trimesh):
                 logger.warning(f"OBJ file {obj_file.name} is a single mesh, but has more than one material, skipping split processing, please check the mtl file")
@@ -340,8 +327,8 @@ def split_obj_by_materials(mjcf_path: str | Path) -> None:
     for material in all_mtl_materials.values():
         material_attrib = {
             "name": material.name,
-            "specular": material.mjcf_specular(),
-            "shininess": material.mjcf_shininess(),
+            # "specular": material.mjcf_specular(),
+            # "shininess": material.mjcf_shininess(),
             "rgba": material.mjcf_rgba(),
         }
         ET.SubElement(asset, "material", attrib=material_attrib)
