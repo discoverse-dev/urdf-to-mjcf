@@ -218,7 +218,7 @@ def convert_urdf_to_mjcf(
     
     # Prepare paths for mesh processing
     urdf_dir: Path = urdf_path.parent.resolve()
-    target_mesh_dir: Path = (mjcf_path.parent).resolve()
+    target_mesh_dir: Path = (mjcf_path.parent / "meshes").resolve()
     target_mesh_dir.mkdir(parents=True, exist_ok=True)
     
     # Auto-detect workspace search paths for package resolution
@@ -237,12 +237,14 @@ def convert_urdf_to_mjcf(
         workspace_search_paths.append(package_root)
         logger.debug(f"Found package root from URDF location: {package_root}")
 
-    def handle_geom_element(geom_elem: ET.Element | None, default_size: str, prefix: str="") -> GeomElement:
+    def handle_geom_element(geom_elem: ET.Element | None, default_size: str, prefix: str="", link_prefix: str="") -> GeomElement:
         """Helper to handle geometry elements safely.
 
         Args:
             geom_elem: The geometry element to process
             default_size: Default size to use if not specified
+            prefix: Prefix for collision geometries (e.g., "collision")
+            link_prefix: Link name prefix for visual geometries to avoid mesh name conflicts
 
         Returns:
             A GeomElement instance
@@ -280,8 +282,12 @@ def convert_urdf_to_mjcf(
             filename = mesh_elem.attrib.get("filename")
             if filename is not None:
                 mesh_name = Path(filename).stem
+                # Apply prefix for collision geometries
                 if prefix:
                     mesh_name = f"{prefix}_{mesh_name}"
+                # Apply link prefix for visual geometries to avoid conflicts
+                if link_prefix:
+                    mesh_name = f"{link_prefix}_{mesh_name}"
                 if mesh_name not in mesh_assets:
                     mesh_assets[mesh_name] = filename
                         
@@ -461,7 +467,8 @@ def convert_urdf_to_mjcf(
                 
                 visual_geom_elem: ET.Element | None = visual.find("geometry")
                 if visual_geom_elem is not None:
-                    geom = handle_geom_element(visual_geom_elem, "1 1 1")
+                    # Add link_name as prefix to avoid mesh name conflicts between different links
+                    geom = handle_geom_element(visual_geom_elem, "1 1 1", link_prefix=link_name)
                     
                     # Standard single geom creation
                     name = f"{link_name}_visual"
@@ -726,6 +733,8 @@ def convert_urdf_to_mjcf(
                     source_path = None
             except:
                 source_path = None
+            # Include package name in target path for package:// URLs
+            sub_path = f"{pkg_mesh_name}/{sub_path}"
         elif filename.startswith('/'):
             sub_path = os.path.relpath(filename, urdf_dir)
             source_path = Path(filename)
@@ -788,15 +797,16 @@ def convert_urdf_to_mjcf(
     for mesh_name, filename in mesh_assets.items():
         # Clean up package:// paths to relative paths
         if 'package://' in filename:
-            # Extract the relative path after package name
+            # Extract the full path including package name
             package_path = filename[len('package://'):]
-            parts = package_path.split('/')
-            if len(parts) > 1:
-                # Remove the package name part, keep the rest as relative path
-                relative_path = '/'.join(parts[1:])
-                filename = relative_path
+            # Keep package name in the path, prepend meshes/ directory
+            filename = f"meshes/{package_path}"
         elif filename.startswith('/'):
-            filename = os.path.relpath(filename, urdf_dir)
+            rel_path = os.path.relpath(filename, urdf_dir)
+            filename = f"meshes/{rel_path}"
+        else:
+            # Regular relative path
+            filename = f"meshes/{filename}"
 
         # mesh_name already should be the stem (without .obj), 
         # so it will match the geom references

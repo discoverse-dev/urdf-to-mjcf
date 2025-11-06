@@ -274,11 +274,27 @@ def split_obj_by_materials(mjcf_path: str | Path) -> None:
             if submeshes:
                 # Found split meshes
                 submesh_info = []
+                # Extract link prefix from mesh_name if it exists
+                # mesh_name format: linkname_meshstem or just meshstem
+                link_prefix = ""
+                if mesh_name != obj_stem:
+                    # mesh_name has a prefix (link name)
+                    # Extract everything before the last occurrence of obj_stem
+                    if obj_stem in mesh_name:
+                        prefix_part = mesh_name[:mesh_name.rfind(obj_stem)]
+                        if prefix_part.endswith('_'):
+                            link_prefix = prefix_part[:-1]  # Remove trailing underscore
+                
                 for i, submesh_path in enumerate(sorted(submeshes)):
                     submesh_stem = submesh_path.stem
+                    # If mesh_name has a link prefix, add it to submesh name
+                    if link_prefix:
+                        submesh_name_with_prefix = f"{link_prefix}_{submesh_stem}"
+                    else:
+                        submesh_name_with_prefix = submesh_stem
                     # Get relative path from mesh_dir
                     submesh_rel_path = submesh_path.relative_to(mesh_dir)
-                    submesh_info.append((submesh_stem, str(submesh_rel_path)))
+                    submesh_info.append((submesh_name_with_prefix, str(submesh_rel_path)))
                 
                 mesh_splits[mesh_name] = submesh_info
                 split_info = submesh_info
@@ -386,13 +402,26 @@ def split_obj_by_materials(mjcf_path: str | Path) -> None:
                             if line.startswith('usemtl '):
                                 mtl_name_raw = line.split()[1].strip()
                                 # Look for matching material with correct prefix
-                                # The material name should be: {obj_stem}_{mtl_name_raw}
-                                # where obj_stem comes from the original mesh name
-                                if mesh_ref.endswith('.obj'):
-                                    original_obj_stem = mesh_ref[:-4]  # Remove .obj suffix
+                                # The material name should be: {actual_obj_stem}_{mtl_name_raw}
+                                # Need to extract the actual obj stem from mesh_ref (which may have link prefix)
+                                
+                                # Get the actual OBJ file stem by looking at the submesh_file path
+                                # submesh_file format: path/to/obj_stem/obj_stem_N.obj
+                                submesh_parts = Path(submesh_file).parts
+                                if len(submesh_parts) >= 2:
+                                    # The parent directory name is the actual obj_stem
+                                    actual_obj_stem = submesh_parts[-2]
                                 else:
-                                    original_obj_stem = mesh_ref
-                                expected_material_name = f"{original_obj_stem}_{mtl_name_raw}"
+                                    # Fallback: try to extract from mesh_ref
+                                    if mesh_ref.endswith('.obj'):
+                                        mesh_ref_no_ext = mesh_ref[:-4]
+                                    else:
+                                        mesh_ref_no_ext = mesh_ref
+                                    # Remove link prefix if present
+                                    # Find the obj_stem in the mesh_ref
+                                    actual_obj_stem = submesh_path.parent.name
+                                
+                                expected_material_name = f"{actual_obj_stem}_{mtl_name_raw}"
                                 if expected_material_name in all_mtl_materials:
                                     assigned_material = expected_material_name
                                     break

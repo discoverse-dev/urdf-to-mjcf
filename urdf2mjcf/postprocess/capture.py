@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 def capture_scene(
     mjcf_path: Path,
     output_path: Path,
-    width: int = 1000,
-    height: int = 1000,
+    width: int = 2000,
+    height: int = 2000,
     enable_group2: bool = True,
     enable_group3: bool = False,
 ) -> None:
@@ -187,14 +187,14 @@ Examples:
     parser.add_argument(
         "--width",
         type=int,
-        default=1000,
-        help="Image width in pixels (default: 1000)"
+        default=2000,
+        help="Image width in pixels (default: 2000)"
     )
     parser.add_argument(
         "--height",
         type=int,
-        default=1000,
-        help="Image height in pixels (default: 1000)"
+        default=2000,
+        help="Image height in pixels (default: 2000)"
     )
     parser.add_argument(
         "--no-visual",
