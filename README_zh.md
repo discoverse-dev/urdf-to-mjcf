@@ -2,6 +2,8 @@
 
 URDF到MJCF转换工具，支持stl、obj、dae格式，自动识别urdf中的mimic标签，可配置关节驱动器，一键生成sim-ready的mjcf文件。
 
+[English Document](./README.md)
+
 <img src="assets/family.png" alt="piper" style="width: 95%;" />
 
 ## 🚀 安装
