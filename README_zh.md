@@ -11,7 +11,7 @@ URDF到MJCF转换工具，支持stl、obj、dae格式，自动识别urdf中的mi
 ### 安装步骤
 
 ```bash
-git clone https://github.com/discoverse-dev/urdf2mjcf.git
+git clone https://github.com/discoverse-dev/robot2mjcf.git
 cd urdf2mjcf
 uv pip install -e .
 ```
@@ -28,14 +28,14 @@ pip install -i https://test.pypi.org/simple/ robot2mjcf
 
 ```bash
 cd /path/to/your/robot-description/
-urdf2mjcf input.urdf --output mjcf/output.xml
+robot2mjcf input.urdf --output mjcf/output.xml
 # 注意不要将生成的.xml放在和urdf同一目录下，可以向上面一样添加 mjcf/output.xml
 ```
 
 ### 命令行参数说明
 
 ```bash
-urdf2mjcf <urdf_path> [options]
+robot2mjcf <urdf_path> [options]
 ```
 
 #### 必需参数
@@ -63,7 +63,7 @@ urdf2mjcf <urdf_path> [options]
 ```bash
 # agilex-piper机器人
 cd examples/agilex-piper
-urdf2mjcf piper.urdf \
+robot2mjcf piper.urdf \
   -o mjcf/piper.xml \
   -m metadata/metadata.json \
   -am metadata/actuator.json \
@@ -74,7 +74,7 @@ python -m mujoco.viewer --mjcf=mjcf/piper.xml
 
 # realman-rm65机械臂
 cd examples/realman-rm65
-urdf2mjcf rm65b_eg24c2_description.urdf \
+robot2mjcf rm65b_eg24c2_description.urdf \
   -o mjcf/rm65.xml \
   -m metadata/metadata.json \
   -am metadata/actuator.json \
@@ -108,16 +108,16 @@ set URDF2MJCF_MODEL_PATH="C:\path\to\robot1_description;C:\path\to\robot2_descri
 
 ```bash
 # 扫描工作空间中的ROS描述包并生成导出命令
-urdf2mjcf-modelpath scan /path/to/your/workspace
+robot2mjcf-modelpath scan /path/to/your/workspace
 
 # 扫描多个目录
-urdf2mjcf-modelpath scan /path/to/workspace1 /path/to/workspace2
+robot2mjcf-modelpath scan /path/to/workspace1 /path/to/workspace2
 
 # 列出环境变量中的当前路径
-urdf2mjcf-modelpath list
+robot2mjcf-modelpath list
 
 # 生成取消设置环境变量的命令
-urdf2mjcf-modelpath unset
+robot2mjcf-modelpath unset
 ```
 
 **功能特点:**

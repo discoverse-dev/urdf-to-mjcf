@@ -11,7 +11,7 @@ URDF to MJCF conversion tool with support for STL, OBJ, DAE formats, automatic r
 ### Installation Steps
 
 ```bash
-git clone https://github.com/discoverse-dev/urdf2mjcf.git
+git clone https://github.com/discoverse-dev/robot2mjcf.git
 cd urdf2mjcf
 uv pip install -e .
 ```
@@ -28,14 +28,14 @@ pip install -i https://test.pypi.org/simple/ robot2mjcf
 
 ```bash
 cd /path/to/your/robot-description/
-urdf2mjcf input.urdf --output mjcf/output.xml
+robot2mjcf input.urdf --output mjcf/output.xml
 # Note: Do not place the generated .xml file in the same directory as the urdf, you can add mjcf/output.xml as shown above
 ```
 
 ### Command Line Arguments
 
 ```bash
-urdf2mjcf <urdf_path> [options]
+robot2mjcf <urdf_path> [options]
 ```
 
 #### Required Arguments
@@ -64,7 +64,7 @@ urdf2mjcf <urdf_path> [options]
 ```bash
 # agilex-piper robot
 cd examples/agilex-piper
-urdf2mjcf piper.urdf \
+robot2mjcf piper.urdf \
   -o mjcf/piper.xml \
   -m metadata/metadata.json \
   -am metadata/actuator.json \
@@ -75,7 +75,7 @@ python -m mujoco.viewer --mjcf=mjcf/piper.xml
 
 # realman-rm65 robotic arm
 cd examples/realman-rm65
-urdf2mjcf rm65b_eg24c2_description.urdf \
+robot2mjcf rm65b_eg24c2_description.urdf \
   -o mjcf/rm65.xml \
   -m metadata/metadata.json \
   -am metadata/actuator.json \
@@ -109,16 +109,16 @@ We provide a convenient command-line tool to manage the `URDF2MJCF_MODEL_PATH` e
 
 ```bash
 # Scan a workspace for ROS description packages and generate export command
-urdf2mjcf-modelpath scan /path/to/your/workspace
+robot2mjcf-modelpath scan /path/to/your/workspace
 
 # Scan multiple directories
-urdf2mjcf-modelpath scan /path/to/workspace1 /path/to/workspace2
+robot2mjcf-modelpath scan /path/to/workspace1 /path/to/workspace2
 
 # List current paths in the environment variable
-urdf2mjcf-modelpath list
+robot2mjcf-modelpath list
 
 # Generate command to unset the environment variable
-urdf2mjcf-modelpath unset
+robot2mjcf-modelpath unset
 ```
 
 **Features:**

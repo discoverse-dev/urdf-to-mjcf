@@ -9,9 +9,9 @@
 
 - Install dependencies: `uv sync --all-groups`
 - Run tests: `uv run pytest`
-- Lint: `uv run ruff check urdf2mjcf tests`
-- Format: `uv run ruff format urdf2mjcf tests`
-- Type check: `uv run mypy urdf2mjcf tests`
+- Lint: `uv run ruff check src/urdf2mjcf tests`
+- Format: `uv run ruff format src/urdf2mjcf tests`
+- Type check: `uv run mypy src/urdf2mjcf tests`
 - Local build: `uv build`
 
 ## Project Structure
