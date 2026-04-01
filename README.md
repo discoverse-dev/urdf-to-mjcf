@@ -1,4 +1,4 @@
-# urdf-to-mjcf
+# robot2mjcf
 
 URDF to MJCF conversion tool with support for STL, OBJ, DAE formats, automatic recognition of mimic tags in URDF, configurable joint actuators, and one-click generation of sim-ready MJCF files.
 
@@ -11,7 +11,7 @@ URDF to MJCF conversion tool with support for STL, OBJ, DAE formats, automatic r
 ### Installation Steps
 
 ```bash
-git clone https://github.com/TATP-233/urdf2mjcf.git
+git clone https://github.com/discoverse-dev/urdf2mjcf.git
 cd urdf2mjcf
 uv pip install -e .
 ```
@@ -19,7 +19,7 @@ uv pip install -e .
 Or install from TestPyPI:
 
 ```bash
-pip install -i https://test.pypi.org/simple/ urdf-to-mjcf
+pip install -i https://test.pypi.org/simple/ robot2mjcf
 ```
 
 ## 📖 Usage
