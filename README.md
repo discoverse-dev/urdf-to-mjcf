@@ -51,6 +51,7 @@ robot2mjcf <urdf_path> [options]
 - `--collision-type`: Collision type(mesh, convex decomposition, convex hull)
 - `--log-level`: Logging level (default: INFO level)
 - `--max-vertices`: Maximum number of vertices in the mesh (default: 200000)
+- `--skip-mesh-postprocess`: Skip heavy mesh-file post-processing and keep only lightweight XML-side postprocess steps
 
 #### Metadata Files Description
 - **metadata**: Main conversion configuration file, contains height offset, angle units, whether to add floor, etc.

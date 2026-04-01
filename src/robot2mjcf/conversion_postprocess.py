@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 from robot2mjcf.model import ConversionMetadata
@@ -27,6 +28,19 @@ from robot2mjcf.postprocess.update_mesh import update_mesh
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class PostprocessOptions:
+    """Typed configuration for the post-processing pipeline."""
+
+    metadata: ConversionMetadata
+    collision_only: bool
+    collision_type: str | None
+    max_vertices: int
+    appendix_files: list[Path] | None
+    capture_images: bool
+    run_mesh_postprocess: bool
+
+
 def maybe_capture_robot_images(mjcf_path: str | Path, *, capture_images: bool) -> None:
     """Capture robot images only when explicitly requested."""
     if not capture_images:
@@ -48,63 +62,61 @@ def maybe_capture_robot_images(mjcf_path: str | Path, *, capture_images: bool) -
 def apply_postprocess_pipeline(
     mjcf_path: str | Path,
     *,
-    metadata: ConversionMetadata,
-    collision_only: bool,
-    collision_type: str | None,
-    max_vertices: int,
-    appendix_files: list[Path] | None,
-    capture_images: bool,
+    options: PostprocessOptions,
 ) -> None:
     """Apply the standard post-processing pipeline to a generated MJCF file."""
     mjcf_path = Path(mjcf_path)
 
     print("Added light...")
     add_light(mjcf_path)
-    if collision_type == "decomposition":
-        print("Convex decomposition...")
-        convex_decomposition(mjcf_path)
-    elif collision_type == "convex_hull":
-        print("Convex hull generation...")
-        convex_collision(mjcf_path)
+    if options.run_mesh_postprocess:
+        if options.collision_type == "decomposition":
+            print("Convex decomposition...")
+            convex_decomposition(mjcf_path)
+        elif options.collision_type == "convex_hull":
+            print("Convex hull generation...")
+            convex_collision(mjcf_path)
 
-    print("Converting collision geometries to STL...")
-    collision_to_stl(mjcf_path)
-    if not collision_only:
-        print("Split OBJ files by materials...")
-        split_obj_by_materials(mjcf_path)
-    print("Updating meshes...")
-    update_mesh(mjcf_path, max_vertices)
-    print("Moving mesh scale attributes...")
-    move_mesh_scale(mjcf_path)
-    print("Checking shell meshes...")
-    check_shell_meshes(mjcf_path)
-    print("Deduplicating mesh assets...")
-    deduplicate_meshes(mjcf_path)
+        print("Converting collision geometries to STL...")
+        collision_to_stl(mjcf_path)
+        if not options.collision_only:
+            print("Split OBJ files by materials...")
+            split_obj_by_materials(mjcf_path)
+        print("Updating meshes...")
+        update_mesh(mjcf_path, options.max_vertices)
+        print("Moving mesh scale attributes...")
+        move_mesh_scale(mjcf_path)
+        print("Checking shell meshes...")
+        check_shell_meshes(mjcf_path)
+        print("Deduplicating mesh assets...")
+        deduplicate_meshes(mjcf_path)
+    elif options.collision_type is not None:
+        logger.warning("Skipping mesh postprocess pipeline; collision_type=%s was ignored.", options.collision_type)
 
-    if metadata.angle != "radian":
-        assert metadata.angle == "degree", "Only 'radian' and 'degree' are supported."
+    if options.metadata.angle != "radian":
+        assert options.metadata.angle == "degree", "Only 'radian' and 'degree' are supported."
         make_degrees(mjcf_path)
-    if metadata.backlash:
-        add_backlash(mjcf_path, metadata.backlash, metadata.backlash_damping)
-    if metadata.freejoint:
-        fix_base_joint(mjcf_path, metadata.freejoint)
-    if metadata.add_floor:
+    if options.metadata.backlash:
+        add_backlash(mjcf_path, options.metadata.backlash, options.metadata.backlash_damping)
+    if options.metadata.freejoint:
+        fix_base_joint(mjcf_path, options.metadata.freejoint)
+    if options.metadata.add_floor:
         add_floor(mjcf_path)
-    if metadata.remove_redundancies:
+    if options.metadata.remove_redundancies:
         remove_redundancies(mjcf_path)
-    if metadata.collision_geometries is not None:
-        update_collisions(mjcf_path, metadata.collision_geometries)
-    if metadata.explicit_contacts is not None:
+    if options.metadata.collision_geometries is not None:
+        update_collisions(mjcf_path, options.metadata.collision_geometries)
+    if options.metadata.explicit_contacts is not None:
         add_explicit_floor_contacts(
             mjcf_path,
-            contact_links=metadata.explicit_contacts.contact_links,
-            class_name=metadata.explicit_contacts.class_name,
-            floor_name=metadata.floor_name,
+            contact_links=options.metadata.explicit_contacts.contact_links,
+            class_name=options.metadata.explicit_contacts.class_name,
+            floor_name=options.metadata.floor_name,
         )
 
-    if appendix_files:
+    if options.appendix_files:
         print("Adding appendix...")
-        for appendix_file in appendix_files:
+        for appendix_file in options.appendix_files:
             add_appendix(mjcf_path, appendix_file)
 
-    maybe_capture_robot_images(mjcf_path, capture_images=capture_images)
+    maybe_capture_robot_images(mjcf_path, capture_images=options.capture_images)

@@ -51,6 +51,7 @@ robot2mjcf <urdf_path> [options]
 - `--collision-type`: 使用碰撞类型（原样mesh，凸分解，凸包络）
 - `--log-level`: 日志级别 (默认: INFO级别)
 - `--max-vertices`: 网格中的最大顶点数量 (默认: 200000)
+- `--skip-mesh-postprocess`: 跳过重型 mesh 文件后处理，仅保留轻量 XML 侧后处理步骤
 
 #### 元数据文件说明
 - **metadata**: 主要转换配置文件，包含高度偏移、角度单位、是否添加地面等设置

@@ -12,16 +12,16 @@
 
 ## P1
 
-- [~] 拆分 `convert.py`
+- [x] 拆分 `convert.py`
   - [x] 抽出输出路径解析
   - [x] 抽出 metadata 读取
   - [x] 抽出材料收集
   - [x] 抽出 joint graph / mimic 解析
-  - [ ] 继续拆 body 构建
-  - [ ] 继续拆 mesh 复制与资源处理
+  - [x] 继续拆 body 构建
+  - [x] 继续拆 mesh 复制与资源处理
   - [x] 继续拆 postprocess orchestration
-- [ ] 给后处理模块建立统一协议
-- [~] 为高风险模块补测试
+- [x] 给后处理模块建立统一协议
+- [x] 为高风险模块补测试
   - [x] 为 example 端到端回归建立语义级签名测试
   - [x] `package_resolver.py`
   - [x] `model_path_manager.py`
@@ -29,16 +29,16 @@
   - [x] `postprocess/collisions.py`
   - [x] `postprocess/convex_*`
   - [x] `postprocess/add_sensors.py`
-- [ ] 修复明显漂移接口
+- [x] 修复明显漂移接口
   - [x] `mjcf_builders.add_default()` 类型标注
   - [x] `model_path_manager --max-depth` 未生效
 
 ## P2
 
 - [x] 增加 Windows CI smoke test
-- [ ] 做能力分层
-  - [ ] 轻量转换核心与重型 mesh 后处理分层
-  - [ ] 把依赖最重的步骤改为显式可选
+- [x] 做能力分层
+  - [x] 轻量转换核心与重型 mesh 后处理分层
+  - [x] 把依赖最重的步骤改为显式可选
 - [x] 建立更完整的文档体系
   - [x] 架构说明
   - [x] 元数据字段参考
@@ -47,7 +47,7 @@
   - [x] CONTRIBUTING
   - [x] 版本变更日志
   - [x] LICENSE 文件
-- [ ] 建立更可信的质量门禁
+- [x] 建立更可信的质量门禁
   - [x] 覆盖率阈值
   - [x] 按模块逐步收紧 mypy
   - [x] `ruff format --check`

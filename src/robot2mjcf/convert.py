@@ -3,15 +3,18 @@
 import argparse
 import json
 import logging
-import os
-import shutil
 import traceback
 import xml.etree.ElementTree as ET
 from collections.abc import Mapping
 from pathlib import Path
 
-import numpy as np
-
+from robot2mjcf.conversion_assets import (
+    add_mesh_assets_to_xml,
+    collect_single_obj_materials,
+    copy_mesh_assets,
+    resolve_workspace_search_paths,
+)
+from robot2mjcf.conversion_body_builder import build_robot_body_tree
 from robot2mjcf.conversion_helpers import (
     build_joint_maps,
     collect_mimic_constraints,
@@ -19,9 +22,8 @@ from robot2mjcf.conversion_helpers import (
     load_conversion_metadata,
     resolve_output_path,
 )
-from robot2mjcf.conversion_postprocess import apply_postprocess_pipeline
-from robot2mjcf.geometry import GeomElement, ParsedJointParams, compute_min_z, format_value, rpy_to_quat
-from robot2mjcf.materials import Material, copy_obj_with_mtl, get_obj_material_info, parse_mtl_name
+from robot2mjcf.conversion_postprocess import PostprocessOptions, apply_postprocess_pipeline
+from robot2mjcf.geometry import ParsedJointParams, compute_min_z, format_value
 from robot2mjcf.mjcf_builders import (
     ROBOT_CLASS,
     add_assets,
@@ -31,7 +33,6 @@ from robot2mjcf.mjcf_builders import (
     add_weld_constraints,
 )
 from robot2mjcf.model import ActuatorMetadata, DefaultJointMetadata
-from robot2mjcf.package_resolver import find_workspace_from_path, resolve_package_path
 from robot2mjcf.utils import save_xml
 
 logger = logging.getLogger(__name__)
@@ -68,6 +69,7 @@ def convert_urdf_to_mjcf(
     collision_only: bool = False,
     collision_type: str | None = None,
     capture_images: bool = False,
+    run_mesh_postprocess: bool = True,
 ) -> None:
     """Converts a URDF file to an MJCF file.
 
@@ -82,6 +84,7 @@ def convert_urdf_to_mjcf(
         collision_only: If true, use simplified collision geometry without visual appearance for visual representation.
         collision_type: The type of collision geometry to use.
         capture_images: If true, capture rendered preview images after conversion.
+        run_mesh_postprocess: If false, skip the heavy mesh post-processing pipeline.
     """
     urdf_path = Path(urdf_path)
     if not urdf_path.exists():
@@ -145,417 +148,28 @@ def convert_urdf_to_mjcf(
     target_mesh_dir: Path = (mjcf_path.parent / "meshes").resolve()
     target_mesh_dir.mkdir(parents=True, exist_ok=True)
 
-    # Auto-detect workspace search paths for package resolution
-    workspace_search_paths = []
+    workspace_search_paths = resolve_workspace_search_paths(urdf_path)
 
-    # Find workspace from URDF file location
-    workspace_from_urdf = find_workspace_from_path(urdf_path)
-    if workspace_from_urdf:
-        workspace_search_paths.append(workspace_from_urdf)
-        logger.debug(f"Found ROS workspace from URDF location: {workspace_from_urdf}")
-
-    # Also try to find the package root of the URDF file itself for local resource resolution
-    from robot2mjcf.package_resolver import _default_resolver
-
-    package_root = _default_resolver._find_package_root_from_urdf_path(urdf_path)
-    if package_root and package_root not in workspace_search_paths:
-        workspace_search_paths.append(package_root)
-        logger.debug(f"Found package root from URDF location: {package_root}")
-
-    def handle_geom_element(
-        geom_elem: ET.Element | None, default_size: str, prefix: str = "", link_prefix: str = ""
-    ) -> GeomElement:
-        """Helper to handle geometry elements safely.
-
-        Args:
-            geom_elem: The geometry element to process
-            default_size: Default size to use if not specified
-            prefix: Prefix for collision geometries (e.g., "collision")
-            link_prefix: Link name prefix for visual geometries to avoid mesh name conflicts
-
-        Returns:
-            A GeomElement instance
-        """
-        if geom_elem is None:
-            return GeomElement(type="box", size=default_size, scale=None, mesh=None)
-
-        box_elem = geom_elem.find("box")
-        if box_elem is not None:
-            size_str = box_elem.attrib.get("size", default_size)
-            return GeomElement(
-                type="box",
-                size=" ".join(str(float(s) / 2) for s in size_str.split()),
-            )
-
-        cyl_elem = geom_elem.find("cylinder")
-        if cyl_elem is not None:
-            radius = cyl_elem.attrib.get("radius", "0.1")
-            length = cyl_elem.attrib.get("length", "1")
-            return GeomElement(
-                type="cylinder",
-                size=f"{radius} {float(length) / 2}",
-            )
-
-        sph_elem = geom_elem.find("sphere")
-        if sph_elem is not None:
-            radius = sph_elem.attrib.get("radius", "0.1")
-            return GeomElement(
-                type="sphere",
-                size=radius,
-            )
-
-        mesh_elem = geom_elem.find("mesh")
-        if mesh_elem is not None:
-            filename = mesh_elem.attrib.get("filename")
-            if filename is not None:
-                mesh_name = Path(filename).stem
-                # Apply prefix for collision geometries
-                if prefix:
-                    mesh_name = f"{prefix}_{mesh_name}"
-                # Apply link prefix for visual geometries to avoid conflicts
-                if link_prefix:
-                    mesh_name = f"{link_prefix}_{mesh_name}"
-                if mesh_name not in mesh_assets:
-                    mesh_assets[mesh_name] = filename
-
-                scale = mesh_elem.attrib.get("scale")
-                return GeomElement(
-                    type="mesh",
-                    size=None,
-                    scale=scale,
-                    mesh=mesh_name,
-                )
-
-        return GeomElement(
-            type="box",
-            size=default_size,
-        )
-
-    def build_body(
-        link_name: str,
-        joint: ET.Element | None = None,
-        actuator_joints: list[ParsedJointParams] = actuator_joints,
-    ) -> ET.Element | None:
-        """Recursively build a MJCF body element from a URDF link."""
-        link: ET.Element = link_map[link_name]
-
-        if joint is not None:
-            origin_elem: ET.Element | None = joint.find("origin")
-            if origin_elem is not None:
-                pos = origin_elem.attrib.get("xyz", "0 0 0")
-                rpy = origin_elem.attrib.get("rpy", "0 0 0")
-                quat = rpy_to_quat(rpy)
-            else:
-                pos = "0 0 0"
-                quat = "1 0 0 0"
-        else:
-            pos = "0 0 0"
-            quat = "1 0 0 0"
-
-        body_attrib = {"name": link_name}
-        pos_float = np.array(list(map(float, pos.split())))
-        if not np.allclose(pos_float, [0.0, 0.0, 0.0]):
-            body_attrib["pos"] = pos
-        quat_float = list(map(float, quat.split()))
-        if not np.allclose(quat_float, [1.0, 0.0, 0.0, 0.0]):
-            body_attrib["quat"] = quat
-        body: ET.Element = ET.Element("body", attrib=body_attrib)
-
-        # Add joint element if this is not the root and the joint type is not fixed.
-        if joint is not None:
-            jtype: str = joint.attrib.get("type", "fixed")
-
-            if jtype in ("revolute", "continuous", "prismatic"):
-                j_name: str = joint.attrib.get("name", link_name + "_joint")
-                j_attrib: dict[str, str] = {"name": j_name}
-
-                if jtype in ["revolute", "continuous"]:
-                    j_attrib["type"] = "hinge"
-                elif jtype == "prismatic":
-                    j_attrib["type"] = "slide"
-                else:
-                    raise ValueError(f"Unsupported joint type: {jtype}")
-
-                if j_name in actuator_metadata:
-                    if actuator_metadata[j_name].joint_class is not None:
-                        joint_class_value = actuator_metadata[j_name].joint_class
-                        j_attrib["class"] = str(joint_class_value)
-                        logger.info("Joint %s assigned to class: %s", j_name, joint_class_value)
-
-                limit = joint.find("limit")
-                if limit is not None:
-                    lower_val = limit.attrib.get("lower")
-                    upper_val = limit.attrib.get("upper")
-                    if lower_val is not None and upper_val is not None:
-                        j_attrib["range"] = f"{lower_val} {upper_val}"
-                        lower_num: float | None = float(lower_val)
-                        upper_num: float | None = float(upper_val)
-                    else:
-                        lower_num = upper_num = None
-                else:
-                    lower_num = upper_num = None
-                axis_elem = joint.find("axis")
-                if axis_elem is not None:
-                    j_attrib["axis"] = axis_elem.attrib.get("xyz", "0 0 1")
-                ET.SubElement(body, "joint", attrib=j_attrib)
-
-                actuator_joints.append(
-                    ParsedJointParams(
-                        name=j_name,
-                        type=j_attrib["type"],
-                        lower=lower_num,
-                        upper=upper_num,
-                    )
-                )
-
-        # Process inertial information.
-        inertial = link.find("inertial")
-        if inertial is not None:
-            inertial_elem = ET.Element("inertial")
-            origin_inertial = inertial.find("origin")
-            if origin_inertial is not None:
-                inertial_elem.attrib["pos"] = origin_inertial.attrib.get("xyz", "0 0 0")
-                rpy = origin_inertial.attrib.get("rpy", "0 0 0")
-                if rpy != "0 0 0":
-                    inertial_elem.attrib["quat"] = rpy_to_quat(rpy)
-            else:
-                inertial_elem.attrib["pos"] = "0 0 0"
-                inertial_elem.attrib["quat"] = "1 0 0 0"
-            mass_elem = inertial.find("mass")
-            if mass_elem is not None:
-                mass = mass_elem.attrib.get("value", "0")
-                inertial_elem.attrib["mass"] = str(max(float(mass), 1e-6))
-            inertia_elem = inertial.find("inertia")
-            if inertia_elem is not None:
-                ixx = float(inertia_elem.attrib.get("ixx", "0"))
-                ixy = float(inertia_elem.attrib.get("ixy", "0"))
-                ixz = float(inertia_elem.attrib.get("ixz", "0"))
-                iyy = float(inertia_elem.attrib.get("iyy", "0"))
-                iyz = float(inertia_elem.attrib.get("iyz", "0"))
-                izz = float(inertia_elem.attrib.get("izz", "0"))
-                if abs(ixy) > 1e-6 or abs(ixz) > 1e-6 or abs(iyz) > 1e-6:
-                    logger.info(
-                        "Warning: off-diagonal inertia terms for link '%s' are nonzero and will be ignored.",
-                        link_name,
-                    )
-                inertial_elem.attrib["diaginertia"] = f"{max(ixx, 1e-9)} {max(iyy, 1e-9)} {max(izz, 1e-9)}"
-            body.append(inertial_elem)
-
-        # Process collision geometries.
-        collisions = link.findall("collision")
-        for idx, collision in enumerate(collisions):
-            origin_collision = collision.find("origin")
-            if origin_collision is not None:
-                pos_geom: str = origin_collision.attrib.get("xyz", "0 0 0")
-                rpy_geom: str = origin_collision.attrib.get("rpy", "0 0 0")
-                quat_geom: str = rpy_to_quat(rpy_geom)
-            else:
-                pos_geom = "0 0 0"
-                quat_geom = "1 0 0 0"
-            name = f"{link_name}_collision"
-            if len(collisions) > 1:
-                name = f"{name}_{idx}"
-
-            collision_geom_attrib: dict[str, str] = {"name": name}
-            pos_float = np.array(list(map(float, pos_geom.split())))
-            if not np.allclose(pos_float, [0.0, 0.0, 0.0]):
-                collision_geom_attrib["pos"] = pos_geom
-            quat_float = list(map(float, quat_geom.split()))
-            if not np.allclose(quat_float, [1.0, 0.0, 0.0, 0.0]):
-                collision_geom_attrib["quat"] = quat_geom
-
-            # Get material from collision element
-            collision_geom_elem: ET.Element | None = collision.find("geometry")
-            if collision_geom_elem is not None:
-                geom = handle_geom_element(collision_geom_elem, "1 1 1", prefix="collision")
-                collision_geom_attrib["type"] = geom.type
-                if geom.type == "mesh":
-                    if geom.mesh is not None:
-                        collision_geom_attrib["mesh"] = geom.mesh
-                elif geom.size is not None:
-                    collision_geom_attrib["size"] = geom.size
-                if geom.scale is not None:
-                    collision_geom_attrib["scale"] = geom.scale
-            collision_geom_attrib["class"] = "collision"
-            ET.SubElement(body, "geom", attrib=collision_geom_attrib)
-
-        # Process visual geometries.
-        if not collision_only:
-            visuals = link.findall("visual")
-            for idx, visual in enumerate(visuals):
-                origin_elem = visual.find("origin")
-                if origin_elem is not None:
-                    pos_geom = origin_elem.attrib.get("xyz", "0 0 0")
-                    rpy_geom = origin_elem.attrib.get("rpy", "0 0 0")
-                    quat_geom = rpy_to_quat(rpy_geom)
-                else:
-                    pos_geom = "0 0 0"
-                    quat_geom = "1 0 0 0"
-
-                visual_geom_elem: ET.Element | None = visual.find("geometry")
-                if visual_geom_elem is not None:
-                    # Add link_name as prefix to avoid mesh name conflicts between different links
-                    geom = handle_geom_element(visual_geom_elem, "1 1 1", link_prefix=link_name)
-
-                    # Standard single geom creation
-                    name = f"{link_name}_visual"
-                    if len(visuals) > 1:
-                        name = f"{name}_{idx}"
-                    visual_geom_attrib: dict[str, str] = {"name": name}
-
-                    pos_float = np.array(list(map(float, pos_geom.split())))
-                    if not np.allclose(pos_float, [0.0, 0.0, 0.0]):
-                        visual_geom_attrib["pos"] = pos_geom
-                    quat_float = list(map(float, quat_geom.split()))
-                    if not np.allclose(quat_float, [1.0, 0.0, 0.0, 0.0]):
-                        visual_geom_attrib["quat"] = quat_geom
-
-                    visual_geom_attrib["type"] = geom.type
-                    if geom.type == "mesh" and geom.mesh is not None:
-                        visual_geom_attrib["mesh"] = geom.mesh
-                    elif geom.size is not None:
-                        visual_geom_attrib["size"] = geom.size
-
-                    if geom.scale is not None:
-                        visual_geom_attrib["scale"] = geom.scale
-                else:
-                    logger.warning(f"No geometry element link_name={link_name}, use default attribute.")
-                    # No geometry element
-                    name = f"{link_name}_visual"
-                    if len(visuals) > 1:
-                        name = f"{name}_{idx}"
-                    visual_geom_attrib = {
-                        "name": name,
-                        "pos": pos_geom,
-                        "quat": quat_geom,
-                        "type": "box",
-                        "size": "1 1 1",
-                    }
-
-                # Check URDF material first
-                assigned_material = "default_material"
-                material_elem = visual.find("material")
-                if material_elem is not None:
-                    material_name = material_elem.attrib.get("name")
-                    if material_name and material_name in materials:
-                        assigned_material = material_name
-
-                # For mesh geoms, check if it's a single-material OBJ file
-                if geom.type == "mesh" and geom.mesh is not None and assigned_material == "default_material":
-                    # Try to find the actual OBJ file to check its materials
-                    obj_filename = None
-                    for mesh_name, filename in mesh_assets.items():
-                        if mesh_name == geom.mesh:
-                            obj_filename = filename
-                            break
-
-                    if obj_filename and obj_filename.lower().endswith(".obj"):
-                        # Determine the actual OBJ file path
-                        obj_file_path = None
-                        if "package://" in obj_filename:
-                            # Handle package:// paths
-                            package_path = obj_filename[len("package://") :]
-                            pkg_mesh_name = package_path.split("/")[0]
-                            sub_path = "/".join(package_path.split("/")[1:])
-                            try:
-                                pkg_root = resolve_package_path(pkg_mesh_name, workspace_search_paths)
-                                if pkg_root:
-                                    obj_file_path = pkg_root / sub_path
-                            except Exception:
-                                obj_file_path = None
-                        else:
-                            # Regular path
-                            if obj_filename.startswith("/"):
-                                obj_file_path = Path(obj_filename)
-                            else:
-                                obj_file_path = urdf_dir / obj_filename
-
-                        if obj_file_path:
-                            has_single_material, material_name = get_obj_material_info(obj_file_path)
-                            if has_single_material and material_name:
-                                # Create a material name that matches what split_obj_materials would create
-                                obj_stem = obj_file_path.stem
-                                single_material_name = f"{obj_stem}_{material_name}"
-                                assigned_material = single_material_name
-                                logger.info(
-                                    f"Assigned single OBJ material {single_material_name} to geom {visual_geom_attrib['name']}"
-                                )
-
-                visual_geom_attrib["material"] = assigned_material
-                visual_geom_attrib["class"] = "visual"
-                ET.SubElement(body, "geom", attrib=visual_geom_attrib)
-
-        # Recurse into child links.
-        if link_name in parent_map:
-            for child_name, child_joint in parent_map[link_name]:
-                child_body = build_body(child_name, child_joint, actuator_joints)
-                if child_body is not None:
-                    body.append(child_body)
-        return body
-
-    # Build the robot body hierarchy starting from the root link.
-    robot_body = build_body(root_link_name, None, actuator_joints)
-    if robot_body is None:
-        raise ValueError("Failed to build robot body")
+    robot_body, actuator_joints = build_robot_body_tree(
+        root_link_name,
+        link_map=link_map,
+        parent_map=parent_map,
+        actuator_metadata=actuator_metadata,
+        collision_only=collision_only,
+        materials=materials,
+        mesh_assets=mesh_assets,
+        workspace_search_paths=workspace_search_paths,
+        urdf_dir=urdf_dir,
+    )
 
     robot_body.attrib["childclass"] = ROBOT_CLASS
     worldbody.append(robot_body)
 
-    # Collect materials from single-material OBJ files
-    obj_materials = {}
-    for mesh_name, filename in mesh_assets.items():
-        if filename.lower().endswith(".obj"):
-            # Determine the actual OBJ file path
-            obj_file_path = None
-            if "package://" in filename:
-                package_path = filename[len("package://") :]
-                pkg_mesh_name = package_path.split("/")[0]
-                sub_path = "/".join(package_path.split("/")[1:])
-                try:
-                    pkg_root = resolve_package_path(pkg_mesh_name, workspace_search_paths)
-                    if pkg_root:
-                        obj_file_path = pkg_root / sub_path
-                except Exception:
-                    obj_file_path = None
-            else:
-                if filename.startswith("/"):
-                    obj_file_path = Path(filename)
-                else:
-                    obj_file_path = urdf_dir / filename
-
-            if obj_file_path:
-                has_single_material, material_name = get_obj_material_info(obj_file_path)
-                if has_single_material and material_name:
-                    # Parse the MTL file to get material properties
-                    try:
-                        mtl_name = parse_mtl_name(obj_file_path.open("r").readlines())
-                        if mtl_name:
-                            mtl_file = obj_file_path.parent / mtl_name
-                            if mtl_file.exists():
-                                with open(mtl_file, "r") as f:
-                                    mtl_lines = f.readlines()
-
-                                # Find the material definition
-                                material_lines = []
-                                in_material = False
-                                for line in mtl_lines:
-                                    line = line.strip()
-                                    if line.startswith("newmtl ") and line.split()[1] == material_name:
-                                        in_material = True
-                                        material_lines = [line]
-                                    elif line.startswith("newmtl ") and in_material:
-                                        break
-                                    elif in_material:
-                                        material_lines.append(line)
-
-                                if material_lines:
-                                    material = Material.from_string(material_lines)
-                                    obj_stem = obj_file_path.stem
-                                    material.name = f"{obj_stem}_{material_name}"
-                                    obj_materials[material.name] = material
-                                    logger.info(f"Added single OBJ material: {material.name}")
-                    except Exception as e:
-                        logger.warning(f"Failed to parse single-material OBJ {obj_file_path}: {e}")
+    obj_materials = collect_single_obj_materials(
+        mesh_assets,
+        urdf_dir=urdf_dir,
+        workspace_search_paths=workspace_search_paths,
+    )
 
     # Add assets
     add_assets(mjcf_root, materials, obj_materials)
@@ -634,111 +248,16 @@ def convert_urdf_to_mjcf(
     # Add weld constraints if specified in metadata
     add_weld_constraints(mjcf_root, metadata)
 
-    # Copy mesh files with special handling for OBJ files
-    # Also build a mapping from mesh_name to actual target file path for compute_min_z
-    processed_files = set()
-    non_existing_meshes = set()
-    mesh_file_paths: dict[str, Path] = {}  # mesh_name -> actual file path
-
-    for mesh_name, filename in mesh_assets.items():
-        # Determine source path based on whether it's a package:// URL or regular path
-        source_path: Path | None = None
-        target_path: Path | None = None
-
-        if "package://" in filename:
-            # Extract package name and relative path from package URL
-            package_path = filename[len("package://") :]
-            pkg_mesh_name = package_path.split("/")[0]
-            sub_path = "/".join(package_path.split("/")[1:])
-            # Use package_resolver to find the package path
-            try:
-                pkg_root = resolve_package_path(pkg_mesh_name, workspace_search_paths)
-                if pkg_root:
-                    source_path = pkg_root / sub_path
-                else:
-                    source_path = None
-            except Exception:
-                source_path = None
-            # Include package name in target path for package:// URLs
-            sub_path = f"{pkg_mesh_name}/{sub_path}"
-        elif filename.startswith("/"):
-            sub_path = os.path.relpath(filename, urdf_dir)
-            source_path = Path(filename)
-        else:
-            sub_path = filename
-            source_path = (urdf_dir / filename).resolve()
-
-        if source_path and not source_path.exists():
-            logger.error(f"Mesh file not found: {filename}")
-            non_existing_meshes.add(mesh_name)
-            continue
-
-        target_path = target_mesh_dir / sub_path
-        # Copy the file if source exists and target is valid
-        if source_path and target_path and source_path.exists():
-            if not target_path.parent.exists():
-                target_path.parent.mkdir(parents=True, exist_ok=True)
-            # Only copy if we haven't processed this file already
-            if str(target_path) not in processed_files:
-                if source_path != target_path:
-                    try:
-                        # Special handling for OBJ files - copy with MTL
-                        if source_path.suffix.lower() == ".obj":
-                            copy_obj_with_mtl(source_path, target_path)
-                        else:
-                            shutil.copy2(source_path, target_path)
-                        processed_files.add(str(target_path))
-                        logger.debug(f"Copied mesh file: {source_path} -> {target_path}")
-                    except Exception as e:
-                        logger.warning(f"Failed to copy mesh file {source_path} to {target_path}: {e}")
-            # Store the target path for this mesh
-            mesh_file_paths[mesh_name] = target_path
-        elif source_path:
-            logger.warning(f"Mesh file not found: {source_path}")
-
-    if len(non_existing_meshes):
-        print(f"Remove non-existent mesh files from mesh_assets: {len(non_existing_meshes)}")
-        print(non_existing_meshes)
-        for mesh_name in non_existing_meshes:
-            del mesh_assets[mesh_name]
-
-        geom_mesh_to_remove = []
-        for geom in mjcf_root.iter("geom"):
-            geom_mesh_name = geom.attrib.get("mesh")
-            if geom_mesh_name and geom_mesh_name in non_existing_meshes:
-                geom_mesh_to_remove.append(geom)
-
-        # 修复：mjcf_root.remove(geom) 只适用于直接子元素，嵌套需找到 parent
-        def remove_geoms_from_tree(root, geoms_to_remove):
-            parent_map = {c: p for p in root.iter() for c in p}
-            for geom in geoms_to_remove:
-                parent = parent_map.get(geom)
-                if parent is not None:
-                    parent.remove(geom)
-
-        remove_geoms_from_tree(mjcf_root, geom_mesh_to_remove)
-
-    # Add mesh assets to the asset section before saving
-    asset_elem: ET.Element | None = mjcf_root.find("asset")
-    if asset_elem is None:
-        asset_elem = ET.SubElement(mjcf_root, "asset")
-    for mesh_name, filename in mesh_assets.items():
-        # Clean up package:// paths to relative paths
-        if "package://" in filename:
-            # Extract the full path including package name
-            package_path = filename[len("package://") :]
-            # Keep package name in the path, prepend meshes/ directory
-            filename = f"meshes/{package_path}"
-        elif filename.startswith("/"):
-            rel_path = os.path.relpath(filename, urdf_dir)
-            filename = f"meshes/{rel_path}"
-        else:
-            # Regular relative path
-            filename = f"meshes/{filename}"
-
-        # mesh_name already should be the stem (without .obj),
-        # so it will match the geom references
-        ET.SubElement(asset_elem, "mesh", attrib={"name": mesh_name, "file": filename})
+    mesh_copy_result = copy_mesh_assets(
+        mjcf_root,
+        mesh_assets,
+        urdf_dir=urdf_dir,
+        target_mesh_dir=target_mesh_dir,
+        workspace_search_paths=workspace_search_paths,
+    )
+    mesh_assets = mesh_copy_result.mesh_assets
+    mesh_file_paths = mesh_copy_result.mesh_file_paths
+    add_mesh_assets_to_xml(mjcf_root, mesh_assets, urdf_dir=urdf_dir)
 
     # Compute minimum z coordinate and adjust robot base position
     # This is done after all mesh assets are copied so we can load them
@@ -758,12 +277,15 @@ def convert_urdf_to_mjcf(
     save_xml(mjcf_path, ET.ElementTree(mjcf_root))
     apply_postprocess_pipeline(
         mjcf_path,
-        metadata=metadata,
-        collision_only=collision_only,
-        collision_type=collision_type,
-        max_vertices=max_vertices,
-        appendix_files=appendix_files,
-        capture_images=capture_images,
+        options=PostprocessOptions(
+            metadata=metadata,
+            collision_only=collision_only,
+            collision_type=collision_type,
+            max_vertices=max_vertices,
+            appendix_files=appendix_files,
+            capture_images=capture_images,
+            run_mesh_postprocess=run_mesh_postprocess,
+        ),
     )
 
 
@@ -840,6 +362,11 @@ def main() -> None:
         action="store_true",
         help="Capture rendered preview images after conversion.",
     )
+    parser.add_argument(
+        "--skip-mesh-postprocess",
+        action="store_true",
+        help="Skip heavy mesh post-processing and only keep lightweight XML-side postprocess steps.",
+    )
     args = parser.parse_args()
     logger.setLevel(args.log_level)
 
@@ -890,6 +417,7 @@ def main() -> None:
         collision_only=args.collision_only,
         collision_type=args.collision_type,
         capture_images=args.capture_images,
+        run_mesh_postprocess=not args.skip_mesh_postprocess,
     )
 
 
