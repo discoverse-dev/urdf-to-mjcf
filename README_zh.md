@@ -1,4 +1,4 @@
-# urdf2mjcf
+# urdf-to-mjcf
 
 URDF到MJCF转换工具，支持stl、obj、dae格式，自动识别urdf中的mimic标签，可配置关节驱动器，一键生成sim-ready的mjcf文件。
 
@@ -13,7 +13,13 @@ URDF到MJCF转换工具，支持stl、obj、dae格式，自动识别urdf中的mi
 ```bash
 git clone https://github.com/TATP-233/urdf2mjcf.git
 cd urdf2mjcf
-pip install .
+uv pip install -e .
+```
+
+或者从 TestPyPI 安装：
+
+```bash
+pip install -i https://test.pypi.org/simple/ urdf-to-mjcf
 ```
 
 ## 📖 使用方法

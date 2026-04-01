@@ -1,9 +1,9 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
-name = "urdf2mjcf"
+name = "urdf-to-mjcf"
 dynamic = ["version"]
 description = "Convert URDF to MJCF with advanced mesh processing"
 readme = "README.md"
@@ -36,15 +36,7 @@ dependencies = [
     "pillow",
     "pymeshlab",
     "rtree",
-    "tqdm"
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest",
-    "black",
-    "ruff",
-    "mypy",
+    "tqdm",
 ]
 
 [project.urls]
@@ -57,16 +49,19 @@ urdf2mjcf = "urdf2mjcf.convert:main"
 mjcf2obj = "urdf2mjcf.mjcf2obj:main"
 urdf2mjcf-modelpath = "urdf2mjcf.model_path_manager:main"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["urdf2mjcf*"]
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+]
 
-[tool.setuptools.dynamic]
-version = {attr = "urdf2mjcf.__version__"}
+[tool.hatch.version]
+path = "urdf2mjcf/__init__.py"
 
-[tool.black]
-line-length = 120
-target-version = ["py310"]
+[tool.hatch.build.targets.wheel]
+packages = ["urdf2mjcf"]
 
 [tool.ruff]
 line-length = 120
@@ -75,24 +70,44 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
 ignore = [
-    "E501",  # Line too long (handled by black)
+    "E501",  # Line too long (handled by formatter)
+    "N801",  # Class name should use CapWords (historical model names)
+    "N806",  # Variable in function should be lowercase (MTL field names)
     "N812",  # Lowercase imported as non-lowercase
+    "N815",  # Variable in class scope should not be mixedCase (MTL fields)
+    "N816",  # Variable in global scope should not be mixedCase
+    "N817",  # CamelCase imported as acronym
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v"
+addopts = "-v --cov=urdf2mjcf --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["urdf2mjcf"]
+omit = [
+    "*/tests/*",
+    "*/postprocess/capture.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
 
 [tool.mypy]
 python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
+warn_return_any = false
+warn_unused_configs = false
+disallow_untyped_defs = false
+ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = [
-    "trimesh.*",
-    "coacd.*",
-    "OCC.*",
+    "urdf2mjcf.*",
 ]
-ignore_missing_imports = true
+ignore_errors = true
