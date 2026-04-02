@@ -1,6 +1,6 @@
 # robot2mjcf
 
-URDF到MJCF转换工具，支持stl、obj、dae格式，自动识别urdf中的mimic标签，可配置关节驱动器，一键生成sim-ready的mjcf文件。
+URDF到MJCF转换工具，支持STL、OBJ、DAE、GLB格式，自动识别urdf中的mimic标签，可配置关节驱动器，一键生成sim-ready的mjcf文件。
 
 [English Document](./README.md)
 
@@ -147,10 +147,10 @@ export URDF2MJCF_MODEL_PATH="/workspace/src/robot1_description:/workspace/src/ro
 
 ## 📚 补充文档
 
-- [架构说明](./docs/ARCHITECTURE.md)
-- [元数据字段参考](./docs/METADATA_REFERENCE.md)
-- [示例教程](./docs/EXAMPLES.md)
-- [常见问题排查](./docs/TROUBLESHOOTING.md)
+- [架构说明](./docs/zh_CN/ARCHITECTURE.md)
+- [元数据字段参考](./docs/zh_CN/METADATA_REFERENCE.md)
+- [示例教程](./docs/zh_CN/EXAMPLES.md)
+- [常见问题排查](./docs/zh_CN/TROUBLESHOOTING.md)
 - [贡献指南](./CONTRIBUTING.md)
 - [变更记录](./CHANGELOG.md)
 

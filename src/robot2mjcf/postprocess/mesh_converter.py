@@ -107,3 +107,33 @@ def dae2obj(dae_path: str | Path, obj_path: str | Path):
         mesh_data.export(str(obj_path), **mesh_export_kwargs)
 
     logger.info(f"Successfully converted DAE to OBJ: {obj_path}")
+
+
+def glb2obj(glb_path: str | Path, obj_path: str | Path) -> None:
+    """Convert GLB/GLTF file to OBJ format using trimesh.
+
+    Args:
+        glb_path: Path to input GLB/GLTF file
+        obj_path: Path to output OBJ file
+    """
+    glb_path = Path(glb_path)
+    obj_path = Path(obj_path)
+
+    logger.info(f"Converting GLB to OBJ: {glb_path} -> {obj_path}")
+
+    try:
+        mesh_data = trimesh.load(str(glb_path))
+    except Exception as e:
+        logger.error(f"Failed to load GLB file {glb_path}: {e}")
+        raise
+
+    mtl_path = obj_path.with_suffix(".mtl")
+    mtl_name = mtl_path.name
+    export_kwargs: dict[str, Any] = {"mtl_name": mtl_name}
+
+    if isinstance(mesh_data, trimesh.Scene):
+        mesh_data.export(str(obj_path), **export_kwargs)
+    else:
+        mesh_data.export(str(obj_path), **export_kwargs)
+
+    logger.info(f"Successfully converted GLB to OBJ: {obj_path}")

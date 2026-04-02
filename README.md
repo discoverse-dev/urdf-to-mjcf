@@ -1,6 +1,6 @@
 # robot2mjcf
 
-URDF to MJCF conversion tool with support for STL, OBJ, DAE formats, automatic recognition of mimic tags in URDF, configurable joint actuators, and one-click generation of sim-ready MJCF files.
+URDF to MJCF conversion tool with support for STL, OBJ, DAE, GLB formats, automatic recognition of mimic tags in URDF, configurable joint actuators, and one-click generation of sim-ready MJCF files.
 
 [中文文档](./README_zh.md)
 
@@ -147,10 +147,10 @@ These paths will be searched when resolving `package://` URIs and locating mesh 
 
 ## 📚 Additional Docs
 
-- [Architecture](./docs/ARCHITECTURE.md)
-- [Metadata Reference](./docs/METADATA_REFERENCE.md)
-- [Example Walkthrough](./docs/EXAMPLES.md)
-- [Troubleshooting](./docs/TROUBLESHOOTING.md)
+- [Architecture](./docs/en/ARCHITECTURE.md)
+- [Metadata Reference](./docs/en/METADATA_REFERENCE.md)
+- [Example Walkthrough](./docs/en/EXAMPLES.md)
+- [Troubleshooting](./docs/en/TROUBLESHOOTING.md)
 - [Contributing](./CONTRIBUTING.md)
 - [Changelog](./CHANGELOG.md)
 

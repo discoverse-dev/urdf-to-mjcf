@@ -11,7 +11,7 @@ from typing import Any
 import trimesh
 
 from robot2mjcf.core.materials import Material, parse_mtl_name
-from robot2mjcf.postprocess.mesh_converter import dae2obj
+from robot2mjcf.postprocess.mesh_converter import dae2obj, glb2obj
 from robot2mjcf.core.utils import save_xml
 
 logger = logging.getLogger(__name__)
@@ -173,11 +173,14 @@ def split_obj_by_materials(mjcf_path: str | Path) -> None:
 
     # First, convert DAE files to OBJ files
     dae_meshes: dict[str, str] = {}
+    glb_meshes: dict[str, str] = {}
     for mesh_elem in asset.findall("mesh"):
         mesh_name = mesh_elem.get("name", "")
         mesh_file = mesh_elem.get("file", "")
         if mesh_file.lower().endswith(".dae"):
             dae_meshes[mesh_name] = mesh_file
+        elif mesh_file.lower().endswith((".glb", ".gltf")):
+            glb_meshes[mesh_name] = mesh_file
 
     if dae_meshes:
         # Convert DAE files to OBJ files
@@ -223,6 +226,50 @@ def split_obj_by_materials(mjcf_path: str | Path) -> None:
         with open(mjcf_path, "w") as f:
             f.write(mjcf_content)
         # reload the mjcf file
+        tree = ET.parse(mjcf_path)
+        root = tree.getroot()
+        asset = root.find("asset")
+        if asset is None:
+            logger.info("No asset section found, skipping OBJ material splitting")
+            return
+
+    # Convert GLB/GLTF files to OBJ files
+    if glb_meshes:
+        for mesh_name, mesh_file in glb_meshes.items():
+            glb_file_path = mesh_dir / mesh_file
+            if not glb_file_path.exists():
+                logger.warning(f"GLB file {glb_file_path} does not exist, skipping")
+                continue
+
+            obj_file_path = glb_file_path.with_suffix(".obj")
+
+            try:
+                logger.info(f"Converting GLB to OBJ: {glb_file_path} -> {obj_file_path}")
+                glb2obj(glb_file_path, obj_file_path)
+
+                if not obj_file_path.exists():
+                    logger.error(f"OBJ file was not created: {obj_file_path}")
+                    continue
+
+                obj_relative_path = obj_file_path.relative_to(mesh_dir)
+                for mesh_elem in asset.findall("mesh"):
+                    if mesh_elem.get("name") == mesh_name:
+                        mesh_elem.attrib["file"] = str(obj_relative_path)
+                        logger.info(f"Updated asset reference: {mesh_name} -> {obj_relative_path}")
+                        break
+
+                files_to_delete.append(glb_file_path)
+                logger.info(f"Marked for deletion: {glb_file_path}")
+
+            except Exception as e:
+                logger.error(f"Failed to convert GLB file {glb_file_path}: {e}")
+                continue
+
+        with open(mjcf_path, "r") as f:
+            mjcf_content = f.read()
+        mjcf_content = mjcf_content.replace(".glb", ".obj").replace(".gltf", ".obj")
+        with open(mjcf_path, "w") as f:
+            f.write(mjcf_content)
         tree = ET.parse(mjcf_path)
         root = tree.getroot()
         asset = root.find("asset")
