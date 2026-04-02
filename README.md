@@ -8,18 +8,24 @@ URDF to MJCF conversion tool with support for STL, OBJ, DAE, GLB formats, automa
 
 ## 🚀 Installation
 
-### Installation Steps
+### Install from PyPI
+
+```bash
+pip install robot2mjcf
+```
+
+Or with `uv`:
+
+```bash
+uv pip install robot2mjcf
+```
+
+### Install from Source
 
 ```bash
 git clone https://github.com/discoverse-dev/robot2mjcf.git
 cd robot2mjcf
 uv pip install -e .
-```
-
-Or install from TestPyPI:
-
-```bash
-pip install -i https://test.pypi.org/simple/ robot2mjcf
 ```
 
 ## 📖 Usage
@@ -152,7 +158,6 @@ These paths will be searched when resolving `package://` URIs and locating mesh 
 - [Example Walkthrough](./docs/en/EXAMPLES.md)
 - [Troubleshooting](./docs/en/TROUBLESHOOTING.md)
 - [Contributing](./CONTRIBUTING.md)
-- [Changelog](./CHANGELOG.md)
 
 ## 🤝 Acknowledgments
 

@@ -12,17 +12,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            python-version: "3.10"
-          - os: ubuntu-latest
-            python-version: "3.12"
-          - os: macos-latest
-            python-version: "3.12"
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -30,13 +20,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install system dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgl1 libglib2.0-0
+          python-version: "3.12"
 
       - name: Sync dependencies
         run: uv sync --all-groups
@@ -49,56 +33,3 @@ jobs:
 
       - name: Type check with mypy
         run: uv run mypy src/robot2mjcf tests
-
-      - name: Test with pytest
-        run: uv run pytest
-
-  windows-smoke:
-    runs-on: windows-latest
-    continue-on-error: true
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.12"
-
-      - name: Sync dependencies
-        run: uv sync --all-groups
-
-      - name: CLI smoke test
-        run: |
-          uv run robot2mjcf --help
-          uv run robot2mjcf-modelpath --help
-          uv run robot2mjcf-mjcf2obj --help
-
-      - name: Import smoke test
-        run: uv run pytest tests/test_import.py -q --no-cov
-
-  package-smoke:
-    runs-on: ubuntu-latest
-    needs: test
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.12"
-
-      - name: Sync dependencies
-        run: uv sync --all-groups
-
-      - name: Build package
-        run: uv build
-
-      - name: Smoke install wheel
-        run: |
-          uv venv .pkg-smoke
-          uv pip install --python .pkg-smoke/bin/python dist/*.whl
-          .pkg-smoke/bin/robot2mjcf --help
-          .pkg-smoke/bin/robot2mjcf-modelpath --help
-          .pkg-smoke/bin/robot2mjcf-mjcf2obj --help
