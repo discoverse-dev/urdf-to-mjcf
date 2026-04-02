@@ -1,426 +1,275 @@
 # robot2mjcf 仓库系统性评估
 
-评估时间：2026-04-01
+评估时间：2026-04-02
 
 评估方式：
 - 通读仓库结构、核心源码、测试、CI/CD、README、示例与辅助脚本
 - 本地验证 `uv run pytest`、`uv run ruff check src/robot2mjcf tests`、`uv run mypy src/robot2mjcf tests`、`uv build`
-- 额外验证 CI 工作流里实际写入的命令是否可执行
+- 验证 wheel 安装 smoke 和 CLI 入口
+- 对照 [`REFACTOR_TODO.md`](/Users/jiayufei/ws/robot2mjcf/REFACTOR_TODO.md) 逐项核对整改结果
 
 ## 一句话结论
 
-这个仓库已经明显超过“纯原型”阶段，核心转换链条能在真实样例上跑通，打包也能成功；但它还不是生产级开源工程。更准确地说，它是一个**研究/开发场景可用的 beta 级工具仓库**：核心能力可用，工程化外观基本具备，但自动化、架构边界、测试覆盖、类型约束、文档一致性和跨平台验证都还不够硬。
+这个仓库已经从“开发级 beta，工程面还没收口”提升到了**可信的开发级工具仓库，接近发布级开源工程，但仍未达到严格意义上的生产级**。
 
-如果必须分级：
-- 核心转换能力：开发级
-- 部分辅助脚本和后处理工具：原型级到开发级之间
-- 整体仓库成熟度：开发级 beta，未达生产级
+更准确地说：
+- 核心转换链条：开发级，且有真实回归保护
+- 后处理生态：开发级，但重型 mesh 处理仍有明显工程风险
+- 整体仓库成熟度：开发级偏上，接近 release-ready，未达 production-grade
 
 ## 已验证的事实
 
-- `uv run pytest` 通过，`21` 个测试全部通过。
-- 测试覆盖率总计 `45%`。
+- `uv run pytest` 通过，当前为 `56` 个测试全部通过。
+- 总覆盖率为 `65.06%`，并设置了 `--cov-fail-under=50` 门槛。
+- `uv run ruff check src/robot2mjcf tests` 通过。
+- `uv run mypy src/robot2mjcf tests` 通过，且**不再**依赖对 `robot2mjcf.*` 的全局 `ignore_errors = true`。
 - `uv build` 成功，能生成 sdist 和 wheel。
-- `uv run ruff check src/robot2mjcf tests` 失败，当前至少存在 1 个真实 lint 问题：`tests/test_convert.py` 的 import 顺序。
-- `uv run mypy src/robot2mjcf tests` 表面通过，但 `pyproject.toml` 对 `robot2mjcf.*` 设置了 `ignore_errors = true`，所以这个“通过”并不代表主代码真的被有效类型检查。
-- CI 工作流里的命令目前与仓库结构不一致，按工作流原样执行会失败：
-  - `uv run ruff check robot2mjcf tests` 报 `No such file or directory`
-  - `uv run mypy robot2mjcf tests` 报 `cannot read file 'robot2mjcf'`
+- wheel 已在临时虚拟环境中完成安装 smoke。
+- 以下 CLI 入口已通过安装后 smoke：
+  - `robot2mjcf --help`
+  - `robot2mjcf-modelpath --help`
+  - `robot2mjcf-mjcf2obj --help`
+- CI 现已包含：
+  - Linux/macOS 测试矩阵
+  - Windows smoke
+  - `ruff format --check`
+  - mypy
+  - pytest + coverage threshold
+  - package build + smoke install
+
+## 关键整改结果
+
+本轮已完成的主要工程整改：
+
+- 修复 CI 命令路径错误。
+- 去掉主包 mypy 全局忽略，使类型检查真实生效。
+- 修正文档与 CLI / 默认行为不一致的问题。
+- 清理 `urdf_format.py` import 副作用。
+- 将自动截图从默认转换路径中解耦，改为显式开启。
+- 为真实示例建立语义级端到端回归测试。
+- 为 `package_resolver.py`、`model_path_manager.py`、`mjcf2obj.py`、`postprocess/collisions.py`、`postprocess/convex_*`、`postprocess/add_sensors.py` 补测试。
+- 为 `conversion_assets.py` 和 `mjcf_builders.py` 补足关键行为测试。
+- 将 `convert.py` 进一步拆出：
+  - [`conversion_helpers.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/conversion_helpers.py)
+  - [`conversion_postprocess.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/conversion_postprocess.py)
+  - [`conversion_body_builder.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/conversion_body_builder.py)
+  - [`conversion_assets.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/conversion_assets.py)
+- 给后处理链引入显式配置对象 `PostprocessOptions`。
+- 增加 `--skip-mesh-postprocess`，把轻量转换核心与重型 mesh 后处理显式分层。
+- 补齐文档体系：
+  - [`docs/ARCHITECTURE.md`](/Users/jiayufei/ws/robot2mjcf/docs/ARCHITECTURE.md)
+  - [`docs/METADATA_REFERENCE.md`](/Users/jiayufei/ws/robot2mjcf/docs/METADATA_REFERENCE.md)
+  - [`docs/EXAMPLES.md`](/Users/jiayufei/ws/robot2mjcf/docs/EXAMPLES.md)
+  - [`docs/TROUBLESHOOTING.md`](/Users/jiayufei/ws/robot2mjcf/docs/TROUBLESHOOTING.md)
+  - [`CONTRIBUTING.md`](/Users/jiayufei/ws/robot2mjcf/CONTRIBUTING.md)
+  - [`CHANGELOG.md`](/Users/jiayufei/ws/robot2mjcf/CHANGELOG.md)
+  - [`LICENSE`](/Users/jiayufei/ws/robot2mjcf/LICENSE)
 
 ## 分项评级
 
 | 维度 | 评级 | 结论 |
 | --- | --- | --- |
-| 架构设计 | B- | 有明确 `src/` 包结构和模块分层意识，但主流程过于集中，后处理链耦合偏高 |
-| 代码质量 | C+ | 可读性中等，部分模块不错，但风格不统一，脚本化痕迹重，存在明显工程边界问题 |
-| 自动化 CI/CD | D+ | 有 CI 和发布流程，但 CI 命令当前就是错的，类型检查形同虚设 |
-| 测试覆盖 | C | 有真实端到端样例，价值高；但覆盖率只有 45%，大量关键模块几乎未测 |
-| 文档 | C | README 双语、示例直观，但文档与代码不一致，缺少更系统的工程文档 |
-| 使用案例 | B | 两个真实机器人案例有说服力，对研究/开发用户有实际价值 |
-| 跨平台兼容 | C- | 有跨平台意图，但只有 Linux/macOS CI，没有 Windows 验证，依赖链也偏重 |
-| 生产可用性 | C- | 对内部研究或开发团队可用，对外部生产用户还不够稳 |
+| 架构设计 | B | 主流程仍偏集中，但已经有清晰拆分，职责边界明显优于初始状态 |
+| 代码质量 | B- | 代码质量已显著提升，类型约束和测试保护真实生效，但风格仍未完全统一 |
+| 自动化 CI/CD | B | CI / smoke / format / mypy / coverage / package smoke 已成体系 |
+| 测试覆盖 | B | 覆盖率从 45% 提升到 65%+，核心构建与资源处理模块已补强，但个别重模块仍偏薄 |
+| 文档 | B | README 之外已有架构、元数据、示例、排障、贡献和变更文档 |
+| 使用案例 | B | 两个真实机器人案例依然是仓库最有说服力的资产 |
+| 跨平台兼容 | B- | Linux/macOS 路径可信度较高，Windows 已纳入 smoke，完整链路本轮不作为否定项 |
+| 生产可用性 | C+ | 已明显强于 beta 初期，但重型依赖与低覆盖区域仍阻碍生产级结论 |
 
 ## 架构评估
 
-### 优点
+### 当前优点
 
-- 仓库使用了标准 `src/` 布局，打包结构是对的，见 `pyproject.toml` 和 `src/robot2mjcf/`。
-- `model.py` 把元数据配置整理成了 Pydantic 模型，至少在配置入口处建立了结构化边界。
-- 后处理功能被拆到 `postprocess/`，说明作者意识到“转换”和“后修整”是不同职责。
-- 示例资产完整，测试直接用真实 URDF 和网格跑端到端，不是空洞的 mock。
+- 标准 `src/` 布局和打包结构合理。
+- `model.py` 维持了元数据的结构化边界。
+- `convert.py` 已不再是最初那种单文件全包式实现，多个高复杂度职责已被拆出。
+- 后处理链已有统一入口 [`conversion_postprocess.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/conversion_postprocess.py) 和统一配置对象。
+- 已显式区分“轻量转换核心”和“重型 mesh 后处理”。
 
-### 主要问题
+### 仍然存在的问题
 
-#### 1. 主流程 `convert.py` 是单体 orchestrator，职责过载
+#### 1. `convert.py` 仍然是主 orchestrator
 
-`src/robot2mjcf/convert.py` 从 URDF 解析、材料处理、body 构造、资源复制、mesh 处理、碰撞处理、角度处理、appendix、截图输出，全都集中在一个 1000+ 行文件和一个超长函数里，见：
-- `src/robot2mjcf/convert.py:67`
-- `src/robot2mjcf/convert.py:255`
-- `src/robot2mjcf/convert.py:324`
-- `src/robot2mjcf/convert.py:731`
-- `src/robot2mjcf/convert.py:850`
-- `src/robot2mjcf/convert.py:903`
+虽然文件已经明显瘦身，但它依然负责：
+- 顶层流程编排
+- actuator / equality / weld 等核心 MJCF 组装
+- 输出收尾逻辑
 
-这会带来几个直接问题：
-- 很难单元测试
-- 很难局部替换处理步骤
-- 很难明确失败点和恢复策略
-- 很难把“库接口”和“CLI 副作用”分开
+这已经比最初状态好很多，但还不是完全细粒度、易替换的架构。
 
-#### 2. 设计本质上还是“脚本管道”，不是稳定的库式架构
+#### 2. 后处理以文件链路为中心是当前设计取向
 
-现在的主流程是“先生成 XML 文件，再串行调用多个 postprocess 脚本继续原地改文件”。这对快速迭代有效，但不适合作为稳定架构长期维护。典型片段见：
-- `src/robot2mjcf/convert.py:850-913`
+当前许多后处理步骤通过“改写 XML + 改写 mesh 文件”串接，这一方式允许每个后处理脚本独立运行，也符合仓库当前工具化定位。
 
-这意味着：
-- 中间状态落盘很多
-- 子步骤之间通过文件格式隐式耦合
-- 任何一步改了 XML 结构，都可能影响后续多个脚本
+这带来的工程特征是：
+- 中间状态依然落盘
+- 重型步骤仍受环境与依赖影响较大
+- 更偏向脚本式、可拆分、可单独调用的处理链，而不是纯内存变换引擎
 
-这更像“实用工具链组合”，不是“明确边界的转换引擎”。
+#### 3. 重型依赖还没真正分层到 extras
 
-#### 3. 辅助模块质量差异很大
+虽然已经通过 `--skip-mesh-postprocess` 暴露了显式能力边界，但 `pymeshlab`、`coacd`、`pycollada`、`rtree` 等重依赖仍然在项目主依赖中，而不是可选 extras。
 
-有些模块相对规整，例如 `mjcf2obj.py`；但也有明显脚本化残留，例如 `urdf_format.py` 在 import 时就执行参数解析和文件覆盖：
-- `src/robot2mjcf/urdf_format.py:1-21`
-
-这种模块：
-- 不能安全 import
-- 不适合作为包的一部分发布
-- 明显是原型脚本而非生产代码
-
-#### 4. 部分接口和类型定义已经漂移
-
-`add_default` 的类型标注写的是 `DefaultJointMetadata | None`，但实现里按 `dict.items()` 使用，见：
-- `src/robot2mjcf/mjcf_builders.py:36-49`
-
-调用方传的也确实是字典，见：
-- `src/robot2mjcf/convert.py:987-1023`
-
-这类问题说明接口契约没有被工具链真正约束住。
+这对生产化交付仍是一个真实障碍。
 
 ## 代码质量评估
 
-### 优点
+### 当前优点
 
-- 大部分代码能读懂，不存在刻意炫技。
-- 真实问题域覆盖较全：URDF、mesh、materials、package path、MuJoCo 后处理。
-- 一些公共能力已经被抽出，如 `geometry.py`、`materials.py`、`utils.py`。
+- mypy 现在对主代码真实生效。
+- 高风险模块已有基本回归保护。
+- 局部抽离后的模块可读性明显优于初始大函数。
+- 真实示例测试和语义级签名测试很有价值，能有效防止“重构看起来成功但输出悄悄漂移”。
 
-### 问题
+### 当前短板
 
-#### 1. 风格不统一，库代码和脚本代码混杂
-
-仓库里同时存在：
-- 正常模块化代码
-- `argparse` 驱动的独立脚本
-- 中文/英文混写注释和日志
-- `print` 与 `logger` 混用
-- 宽泛 `except Exception`
-
-例如：
-- `src/robot2mjcf/convert.py:104-109`
-- `src/robot2mjcf/convert.py:793-795`
-- `src/robot2mjcf/convert.py:839-913`
-- `src/robot2mjcf/postprocess/update_mesh.py:45-77`
-- `src/robot2mjcf/postprocess/split_obj_materials.py:213-218`
-
-这种混搭在研究代码里常见，但会明显拉低长期维护性。
-
-#### 2. 类型系统存在，但没有真正成为约束工具
-
-`pyproject.toml` 中：
-- `ignore_missing_imports = true`
-- `[[tool.mypy.overrides]]` 下对 `robot2mjcf.*` 直接 `ignore_errors = true`
-
-见：
-- `pyproject.toml:102-113`
-
-这意味着当前 mypy 更像“形式上的配置”，不是实际质量门禁。
-
-#### 3. 可疑实现和未打磨细节不少
-
-- `model_path_manager.py` 暴露了 `--max-depth` 参数，但最终没有传给实际扫描逻辑，见：
-  - `src/robot2mjcf/model_path_manager.py:293-295`
-  - `src/robot2mjcf/model_path_manager.py:163`
-  - `src/robot2mjcf/model_path_manager.py:310-312`
-- `package_resolver.py` 多处使用可变默认参数 `=[]`，见：
-  - `src/robot2mjcf/package_resolver.py:218`
-  - `src/robot2mjcf/package_resolver.py:285`
-  - `src/robot2mjcf/package_resolver.py:310`
-  - `src/robot2mjcf/package_resolver.py:355`
-  - `src/robot2mjcf/package_resolver.py:399`
-  - `src/robot2mjcf/package_resolver.py:413`
-- `split_obj_materials.py` 直接对 MJCF 文本做全局字符串替换 `.dae -> .obj`，这是脆弱实现，见：
-  - `src/robot2mjcf/postprocess/split_obj_materials.py:213-218`
-
-这些问题本身未必立刻导致错误，但说明代码库还停留在“能跑优先”的阶段。
+- 仓库内仍有 `print` 与 `logger` 混用现象。
+- 一些模块仍保留脚本化风格和宽泛异常处理。
+- 风格统一性仍未完全收口，尤其在 `postprocess/` 下更明显。
 
 ## 自动化 CI/CD 评估
 
-这是目前最需要实事求是指出的问题之一：**CI 看起来完整，但当前配置并不可靠。**
+### 当前状态
 
-### 已有优点
+CI 已从“表面存在但并不可靠”提升为“基本可信”：
 
-- 有 GitHub Actions。
-- 有 Linux/macOS + Python 3.10/3.12 矩阵。
-- 有发布到 TestPyPI 的流程。
-- 本地构建是成功的。
+- 使用正确的 `src/robot2mjcf` 路径。
+- 增加了 `ruff format --check`。
+- mypy 真实检查主代码。
+- pytest 设置覆盖率阈值。
+- 增加 Windows smoke。
+- 增加构建产物 smoke install。
 
-### 关键问题
+### 仍然保留的限制
 
-#### 1. CI 里的 Ruff/Mypy 命令路径写错了
-
-工作流使用：
-- `uv run ruff check robot2mjcf tests`
-- `uv run mypy robot2mjcf tests`
-
-见：
-- `/.github/workflows/ci.yml:33-37`
-
-但源码目录实际在 `src/robot2mjcf`。本地验证表明这两个命令会直接失败。
-
-这不是“最佳实践不足”，而是会直接导致 CI 失效的配置错误。
-
-#### 2. mypy 门禁是空心的
-
-即使把路径修正了，当前 `pyproject.toml` 仍然通过 `ignore_errors = true` 跳过了主包类型错误，见：
-- `pyproject.toml:109-113`
-
-所以 CI 上的 mypy 通过，也不能说明类型质量好。
-
-#### 3. Release 工作流细节不够严谨
-
-发布环境 URL 写成了 `urdf-to-mjcf`，和项目分发名 `robot2mjcf` 不一致，见：
-- `pyproject.toml:6`
-- `/.github/workflows/release.yml:13`
-
-这不一定影响发布本身，但暴露出元数据维护不统一。
+- Windows 当前主要是 smoke 级验证；本轮评估不把未补齐完整 Windows 功能矩阵视为设计缺陷。
+- 重依赖跨平台行为仍主要依靠 Linux/macOS 的本地与 CI 经验，而非完整多平台功能验证。
 
 ## 文档与使用案例评估
 
-### 优点
+### 当前优点
 
-- 有中英文 README。
-- 有两个真实机器人案例，不是玩具示例。
-- 模型路径管理工具在 README 中有说明。
+- README 中英文已与当前 CLI 行为对齐。
+- 已补齐面向外部协作最关键的工程文档。
+- 示例仍是真实机器人案例，而不是玩具数据。
 
-### 问题
+### 仍然存在的问题
 
-#### 1. README 与实际 CLI/行为不一致
-
-README 声称：
-- 默认输出是“同名 `.mjcf` 文件”
-- 提供 `--no-convex-decompose`
-
-见：
-- `README.md:45-54`
-- `README_zh.md:45-53`
-
-但实际代码：
-- 默认输出是 `output_mjcf/robot.xml`
-- CLI 里没有 `--no-convex-decompose` 参数
-
-见：
-- `src/robot2mjcf/convert.py:96-112`
-- `tests/test_convert.py:66-120`
-- `src/robot2mjcf/convert.py:936-983`
-
-这会直接误导用户。
-
-#### 2. 缺少更高层的工程文档
-
-仓库缺少：
-- 架构说明
-- 元数据 JSON schema/示例解释
-- 各后处理步骤的设计目的与适用边界
-- 依赖安装注意事项
-- 失败排查指南
-- 版本变更记录
-- CONTRIBUTING / 开发者指南
-- LICENSE 文件本体
-
-README 足够让熟悉领域的人上手，但不够支撑外部用户稳定使用和贡献。
-
-#### 3. 辅助目录文档仍偏原型
-
-`align_stp` 目录中的说明文件名是 `READMD.md`，本身就说明这部分还不够打磨；内容也更偏内部操作备忘而非产品化文档，见：
-- `align_stp/READMD.md`
+- `align_stp/READMD.md` 这类目录仍带有内部备忘风格，说明仓库仍有局部区域未完全产品化。
+- 文档体系已经“够工程化”，但还没有做到非常深入的 API 级文档或设计 RFC 级文档。
 
 ## 测试覆盖评估
 
-### 优点
+### 当前结论
 
-- 不是只测 trivial function，而是拿真实示例做转换。
-- 关键基础模块 `model.py`、`geometry.py` 有基础测试。
-- 打包导出和 CLI help 也有最小 smoke test。
+覆盖率已经从 `45%` 提升到 `65.06%`，这是实质性提升，不是形式改善。
 
-### 问题
+关键变化：
 
-覆盖率只有 `45%`，而且分布很不均匀：
+- `mjcf2obj.py` 已从 `0%` 提升到 `74%`
+- `add_sensors.py` 已从 `0%` 提升到 `75%`
+- `conversion_assets.py` 已提升到 `89%`
+- `mjcf_builders.py` 已提升到 `96%`
+- `convex_collision.py` / `convex_decomposition.py` 已有基础回归覆盖
+- `package_resolver.py` / `model_path_manager.py` 已有真实测试
 
-- `src/robot2mjcf/mjcf2obj.py`: `0%`
-- `src/robot2mjcf/model_path_manager.py`: `0%`
-- `src/robot2mjcf/urdf_format.py`: `0%`
-- `src/robot2mjcf/package_resolver.py`: `25%`
-- `src/robot2mjcf/postprocess/collisions.py`: `6%`
-- `src/robot2mjcf/postprocess/convex_collision.py`: `11%`
-- `src/robot2mjcf/postprocess/convex_decomposition.py`: `11%`
-- `src/robot2mjcf/postprocess/add_sensors.py`: `0%`
+### 仍然偏弱的区域
 
-测试现状说明：
-- 主路径能跑
-- 大量分支、失败路径、辅助工具、后处理模块没有被系统保护
+以下区域仍然需要实事求是地标为残留风险：
 
-这对研究开发阶段是可接受的，对生产级项目不够。
+- [`postprocess/collisions.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/postprocess/collisions.py): `39%`
+- [`postprocess/add_appendix.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/postprocess/add_appendix.py): `49%`
+- [`postprocess/update_mesh.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/postprocess/update_mesh.py): `56%`
+- [`postprocess/add_backlash.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/postprocess/add_backlash.py): `18%`
+
+这意味着：
+- 主路径已经更可信
+- 但最复杂、最重型、最依赖几何细节的部分仍没有到“几乎可以放心大改”的程度
 
 ## 跨平台兼容评估
 
 ### 正向信号
 
-- `package_resolver.py` 和 `model_path_manager.py` 显式考虑了 Windows/Linux/macOS 路径分隔符。
-- CI 覆盖了 Linux 和 macOS。
+- `package_resolver.py` 和 `model_path_manager.py` 显式处理 Windows/Linux/macOS 差异。
+- CI 已含 Windows smoke。
+- wheel 安装 smoke 已成功。
 
-### 限制
+### 当前边界
 
-- 没有 Windows CI。
-- README 声称支持 Windows 环境变量，但没有验证链。
-- `convert.py` 使用 ANSI 颜色输出警告，Windows 终端体验未验证：
-  - `src/robot2mjcf/convert.py:104-109`
-- 依赖链包含 `mujoco`、`pymeshlab`、`coacd`、`pycollada`、`rtree` 等偏重库，安装与运行的跨平台风险本来就高。
+- 没有完整 Windows 端到端转换测试，但这次不将其视为必须立即整改项。
+- 重型 mesh 依赖在不同平台上的稳定性仍是潜在问题。
 
 因此更准确的判断是：
-- Linux/macOS：有一定可信度
-- Windows：有兼容意图，但没有工程级验证，不应宣称高置信支持
+
+- Linux/macOS：中等到较高可信度
+- Windows：已有工程级 smoke 可信度；完整功能可信度仍待未来单独验证
 
 ## 原型级 / 开发级 / 生产级判断
 
-### 不是纯原型的证据
+### 已经明显不是原型的证据
 
-- 有真实样例和端到端测试
-- 有发布配置和打包能力
-- 核心转换链条能稳定输出结果
-- 仓库结构不是单文件实验脚本
+- 有真实机器人示例和语义级回归测试
+- 有真实类型检查和覆盖率门禁
+- 有多平台 CI smoke
+- 有构建和安装 smoke
+- 有成体系的工程文档
 
-### 还不是生产级的原因
+### 仍然不该称为生产级的原因
 
-- CI 配置当前存在实质错误
-- 类型检查没有真正生效
-- 测试覆盖不足，且关键模块空白较多
-- 文档与代码不一致
-- 主流程架构过于集中，副作用和文件级后处理太多
-- 一部分工具模块仍然保持原型脚本形态
+- 重型 mesh 处理依赖还未做 optional extras 分层
+- 最复杂几何/后处理模块覆盖仍不够高
+- 重型 mesh 处理依赖的安装层次仍偏重
 
 ### 最终判断
 
-- `core conversion engine`：开发级
-- `postprocess/tooling ecosystem`：部分开发级，部分原型级
-- `whole repository`：开发级 beta，未达生产级
+- `core conversion engine`: 开发级偏上
+- `postprocess/tooling ecosystem`: 开发级，但重型链路仍有风险
+- `whole repository`: 接近 release-ready 的开发级仓库，未达 production-grade
 
-## 优化建议
+## 剩余优化建议
 
-### P0：必须优先修
+当前不再需要大面积 P0 整改。剩余建议更偏“进一步逼近生产级”：
 
-1. 修复 CI 命令
-- 把 `/.github/workflows/ci.yml` 中的 `robot2mjcf` 改成 `src/robot2mjcf`
-- 这是最低成本、最高收益修复
+### P-next：建议继续做
 
-2. 让 mypy 真正检查主代码
-- 移除 `pyproject.toml:109-113` 的 `ignore_errors = true`
-- 如果一次性收敛不了，先只对白名单模块开启真实检查，例如 `model.py`、`geometry.py`、`package_resolver.py`
+1. 继续提高重型几何模块覆盖率
+- 优先：
+  - `postprocess/collisions.py`
+  - `postprocess/add_appendix.py`
+  - `postprocess/update_mesh.py`
+  - `postprocess/add_backlash.py`
 
-3. 修正文档与实际 CLI/默认行为不一致的问题
-- README / README_zh 中删除不存在的 `--no-convex-decompose`
-- 文档明确默认输出目录是 `output_mjcf/robot.xml`
+2. 把重型依赖做成 extras 或独立安装层
+- 让“轻量转换核心”可以在更瘦环境下安装和运行
+- 让 mesh-heavy pipeline 变成显式依赖能力
 
-4. 把 `urdf_format.py` 从包级可导入代码中清理掉
-- 至少改成正常 `main()` 入口
-- 更好的是移到 `scripts/` 或 `tools/`
+3. 继续压缩 `convert.py`
+- 当前已经不再失控，但仍然是主 orchestrator
+- 下一步应继续把 actuator/equality/weld 等构造逻辑进一步模块化
 
-5. 将“自动截图”从默认转换路径中解耦
-- 现在 `convert_urdf_to_mjcf()` 末尾会尝试截图，见 `src/robot2mjcf/convert.py:903-913`
-- 这不应该是核心转换流程的默认副作用
-- 应改为显式参数开启，或单独命令执行
+## 本轮重构对应提交
 
-### P1：1-2 个版本内完成
+本轮关键提交：
 
-1. 拆分 `convert.py`
-- 至少拆成：
-  - `urdf_parser.py`
-  - `mjcf_tree_builder.py`
-  - `mesh_asset_pipeline.py`
-  - `conversion_runner.py`
-- 目标不是追求抽象，而是把大函数切成可测的稳定单元
-
-2. 给后处理模块建立统一协议
-- 统一函数签名
-- 统一输入输出
-- 明确哪些模块是“纯 XML 变换”，哪些模块会触碰磁盘 mesh 文件
-
-3. 为高风险模块补测试
-- `package_resolver.py`
-- `model_path_manager.py`
-- `mjcf2obj.py`
-- `postprocess/collisions.py`
-- `postprocess/convex_*`
-- `postprocess/add_sensors.py`
-
-4. 修复明显漂移接口
-- 例如 `mjcf_builders.add_default()` 的类型标注
-- 例如 `model_path_manager --max-depth` 未生效
-
-### P2：面向生产级演进
-
-1. 增加 Windows CI
-- 至少跑 smoke test
-- 哪怕不全量跑几何重处理，也要验证安装、导入、CLI help、最小转换
-
-2. 做能力分层
-- “轻量转换核心”与“重型 mesh 后处理”分层
-- 把依赖最重的步骤变成可选 extra 或独立命令
-
-3. 建立更完整的文档体系
-- 架构说明
-- 元数据字段参考
-- 示例教程
-- 常见报错与排查
-- 开发者贡献指南
-- 版本变更日志
-
-4. 建立更可信的质量门禁
-- 覆盖率阈值
-- 按模块逐步收紧 mypy
-- `ruff format --check`
-- 构建产物 smoke install
-
-## 建议的目标状态
-
-如果目标是“研究组内部稳定使用”：
-- 先完成 P0
-- 再补 `package_resolver`、`model_path_manager`、`collisions` 的测试
-
-如果目标是“对外发布、别人可稳定接入”：
-- 需要完成 P0 + P1
-- 并至少在 CI、文档一致性、类型检查、Windows smoke test 四个方面补齐
+- `62ae30b` `refactor: add regression guardrails and conversion helpers`
+- `ef6f1c1` `refactor: decouple image capture and postprocess flow`
+- `1d87b22` `refactor: make mypy check real package code`
+- `4e282c7` `test: cover high-risk modules and add quality gates`
+- `02cb78b` `refactor: extract conversion body and asset pipelines`
 
 ## 最终评价
 
-这是一个**有真实能力、但工程面还没收口的仓库**。
+这已经不是之前那个“能跑，但工程约束很松”的仓库了。
 
-优点不是空的：
-- 真能转
-- 真有示例
-- 真有测试
-- 真能打包
+现在更客观的结论应当是：
 
-但问题也不是“吹毛求疵”：
-- CI 当前存在实质错误
-- 类型检查基本失效
-- 关键模块覆盖不足
-- 文档和实现不一致
-- 架构仍偏脚本管道
+- 它已经具备了**真实的工程质量门槛**
+- 关键回归路径已有保护
+- 自动化与文档体系已基本成型
+- 但距离严格的生产级，还差最后一层：重型依赖分层，以及重模块覆盖继续提升
 
-所以客观结论应该是：
+所以最终结论更新为：
 
-**这是一个可信的开发级 beta 仓库，不是生产级仓库。**
-
+**这是一个可信的开发级偏上仓库，接近 release-ready，但还不是严格意义上的生产级仓库。**
