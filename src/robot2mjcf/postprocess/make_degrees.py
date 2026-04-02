@@ -47,7 +47,7 @@ def update_joint_limits(root: ET.Element) -> None:
         root: The root element of the MJCF file.
     """
     # Find all joint elements with range attribute
-    joints = root.findall(".//joint[@range]")
+    joints = root.findall(".//worldbody//joint[@range]")
     for joint in joints:
         range_str = joint.get("range")
         if range_str:

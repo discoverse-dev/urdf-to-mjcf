@@ -19,8 +19,8 @@
 
 ## 已验证的事实
 
-- `uv run pytest` 通过，当前为 `56` 个测试全部通过。
-- 总覆盖率为 `65.06%`，并设置了 `--cov-fail-under=50` 门槛。
+- `uv run pytest` 通过，当前为 `73` 个测试全部通过。
+- 总覆盖率为 `73.09%`，并设置了 `--cov-fail-under=50` 门槛。
 - `uv run ruff check src/robot2mjcf tests` 通过。
 - `uv run mypy src/robot2mjcf tests` 通过，且**不再**依赖对 `robot2mjcf.*` 的全局 `ignore_errors = true`。
 - `uv build` 成功，能生成 sdist 和 wheel。
@@ -49,6 +49,8 @@
 - 为真实示例建立语义级端到端回归测试。
 - 为 `package_resolver.py`、`model_path_manager.py`、`mjcf2obj.py`、`postprocess/collisions.py`、`postprocess/convex_*`、`postprocess/add_sensors.py` 补测试。
 - 为 `conversion_assets.py` 和 `mjcf_builders.py` 补足关键行为测试。
+- 为 `postprocess/add_appendix.py`、`postprocess/add_backlash.py`、`postprocess/base_joint.py`、`postprocess/explicit_floor_contacts.py`、`postprocess/make_degrees.py` 补足行为测试。
+- 修复 `make_degrees.py` 对 `default/joint[@range]` 的重复角度转换问题。
 - 将 `convert.py` 进一步拆出：
   - [`conversion_helpers.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/conversion_helpers.py)
   - [`conversion_postprocess.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/conversion_postprocess.py)
@@ -72,7 +74,7 @@
 | 架构设计 | B | 主流程仍偏集中，但已经有清晰拆分，职责边界明显优于初始状态 |
 | 代码质量 | B- | 代码质量已显著提升，类型约束和测试保护真实生效，但风格仍未完全统一 |
 | 自动化 CI/CD | B | CI / smoke / format / mypy / coverage / package smoke 已成体系 |
-| 测试覆盖 | B | 覆盖率从 45% 提升到 65%+，核心构建与资源处理模块已补强，但个别重模块仍偏薄 |
+| 测试覆盖 | B+ | 覆盖率从 45% 提升到 73%+，高风险主路径和多数后处理模块已有扎实保护，剩余风险已明显收敛 |
 | 文档 | B | README 之外已有架构、元数据、示例、排障、贡献和变更文档 |
 | 使用案例 | B | 两个真实机器人案例依然是仓库最有说服力的资产 |
 | 跨平台兼容 | B- | Linux/macOS 路径可信度较高，Windows 已纳入 smoke，完整链路本轮不作为否定项 |
@@ -164,7 +166,7 @@ CI 已从“表面存在但并不可靠”提升为“基本可信”：
 
 ### 当前结论
 
-覆盖率已经从 `45%` 提升到 `65.06%`，这是实质性提升，不是形式改善。
+覆盖率已经从 `45%` 提升到 `73.09%`，这是实质性提升，不是形式改善。
 
 关键变化：
 
@@ -172,6 +174,12 @@ CI 已从“表面存在但并不可靠”提升为“基本可信”：
 - `add_sensors.py` 已从 `0%` 提升到 `75%`
 - `conversion_assets.py` 已提升到 `89%`
 - `mjcf_builders.py` 已提升到 `96%`
+- `postprocess/collisions.py` 已提升到 `88%`
+- `postprocess/add_appendix.py` 已提升到 `89%`
+- `postprocess/add_backlash.py` 已提升到 `87%`
+- `postprocess/base_joint.py` 已提升到 `89%`
+- `postprocess/explicit_floor_contacts.py` 已提升到 `80%`
+- `postprocess/make_degrees.py` 已提升到 `94%`
 - `convex_collision.py` / `convex_decomposition.py` 已有基础回归覆盖
 - `package_resolver.py` / `model_path_manager.py` 已有真实测试
 
@@ -179,10 +187,11 @@ CI 已从“表面存在但并不可靠”提升为“基本可信”：
 
 以下区域仍然需要实事求是地标为残留风险：
 
-- [`postprocess/collisions.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/postprocess/collisions.py): `39%`
-- [`postprocess/add_appendix.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/postprocess/add_appendix.py): `49%`
 - [`postprocess/update_mesh.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/postprocess/update_mesh.py): `56%`
-- [`postprocess/add_backlash.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/postprocess/add_backlash.py): `18%`
+- [`postprocess/move_mesh_scale.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/postprocess/move_mesh_scale.py): `51%`
+- [`postprocess/convex_collision.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/postprocess/convex_collision.py): `54%`
+- [`postprocess/convex_decomposition.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/postprocess/convex_decomposition.py): `50%`
+- [`model_path_manager.py`](/Users/jiayufei/ws/robot2mjcf/src/robot2mjcf/model_path_manager.py): `49%`
 
 这意味着：
 - 主路径已经更可信
@@ -236,10 +245,10 @@ CI 已从“表面存在但并不可靠”提升为“基本可信”：
 
 1. 继续提高重型几何模块覆盖率
 - 优先：
-  - `postprocess/collisions.py`
-  - `postprocess/add_appendix.py`
   - `postprocess/update_mesh.py`
-  - `postprocess/add_backlash.py`
+  - `postprocess/move_mesh_scale.py`
+  - `postprocess/convex_collision.py`
+  - `postprocess/convex_decomposition.py`
 
 2. 把重型依赖做成 extras 或独立安装层
 - 让“轻量转换核心”可以在更瘦环境下安装和运行

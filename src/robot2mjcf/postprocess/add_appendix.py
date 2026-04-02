@@ -270,7 +270,7 @@ def merge_elements(parent: ET.Element, new_element: ET.Element) -> None:
     else:
         # Element exists, merge children
         for attr in new_element.attrib:
-            print(attr, new_element.attrib[attr])
+            logger.debug("Merging attribute %s=%s into %s", attr, new_element.attrib[attr], new_element.tag)
             existing_element.attrib[attr] = new_element.attrib[attr]
         for child in new_element:
             existing_element.append(child)

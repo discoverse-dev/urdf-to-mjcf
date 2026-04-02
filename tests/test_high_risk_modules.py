@@ -173,6 +173,112 @@ def test_update_collisions_replaces_mesh_with_box(tmp_path, monkeypatch) -> None
     assert "mesh" not in visual_geom.attrib
 
 
+def test_update_collisions_parallel_capsules_adds_capsule_pairs(tmp_path, monkeypatch) -> None:
+    mjcf_path = write_text(
+        tmp_path / "model.xml",
+        """
+        <mujoco>
+          <asset>
+            <mesh name="arm_mesh" file="arm.obj" />
+          </asset>
+          <worldbody>
+            <body name="arm">
+              <geom name="arm_collision" class="collision" type="mesh" mesh="arm_mesh" />
+              <geom name="arm_visual" class="visual" type="mesh" mesh="arm_mesh" material="blue" />
+            </body>
+          </worldbody>
+        </mujoco>
+        """.strip(),
+    )
+
+    monkeypatch.setattr("robot2mjcf.postprocess.collisions.trimesh.load", lambda path: trimesh.creation.box())
+
+    update_collisions(
+        mjcf_path,
+        [CollisionGeometry(name="arm", collision_type=CollisionType.PARALLEL_CAPSULES, sphere_radius=0.1)],
+    )
+
+    root = ET.parse(mjcf_path).getroot()
+    collision_capsules = root.findall(".//body[@name='arm']/geom[@type='capsule'][@class='collision']")
+    visual_capsules = root.findall(".//body[@name='arm']/geom[@type='capsule'][@class='visual']")
+
+    assert len(collision_capsules) == 2
+    assert len(visual_capsules) == 2
+    assert root.find(".//body[@name='arm']/geom[@name='arm_collision']") is None
+    assert root.find(".//body[@name='arm']/geom[@name='arm_visual']") is not None
+
+
+def test_update_collisions_corner_spheres_replace_visual_mesh(tmp_path, monkeypatch) -> None:
+    mjcf_path = write_text(
+        tmp_path / "model.xml",
+        """
+        <mujoco>
+          <asset>
+            <mesh name="arm_mesh" file="arm.obj" />
+          </asset>
+          <worldbody>
+            <body name="arm">
+              <geom name="arm_collision" class="collision" type="mesh" mesh="arm_mesh" />
+              <geom name="arm_visual" class="visual" type="mesh" mesh="arm_mesh" material="blue" />
+            </body>
+          </worldbody>
+        </mujoco>
+        """.strip(),
+    )
+
+    monkeypatch.setattr("robot2mjcf.postprocess.collisions.trimesh.load", lambda path: trimesh.creation.box())
+
+    update_collisions(
+        mjcf_path,
+        [CollisionGeometry(name="arm", collision_type=CollisionType.CORNER_SPHERES, sphere_radius=0.1)],
+    )
+
+    root = ET.parse(mjcf_path).getroot()
+    collision_spheres = root.findall(".//body[@name='arm']/geom[@type='sphere'][@class='collision']")
+    visual_spheres = root.findall(".//body[@name='arm']/geom[@type='sphere'][@class='visual']")
+
+    assert len(collision_spheres) == 4
+    assert len(visual_spheres) == 4
+    assert root.find(".//body[@name='arm']/geom[@name='arm_collision']") is None
+    assert root.find(".//body[@name='arm']/geom[@name='arm_visual']") is None
+
+
+def test_update_collisions_single_sphere_updates_visual_geom(tmp_path, monkeypatch) -> None:
+    mjcf_path = write_text(
+        tmp_path / "model.xml",
+        """
+        <mujoco>
+          <asset>
+            <mesh name="arm_mesh" file="arm.obj" />
+          </asset>
+          <worldbody>
+            <body name="arm">
+              <geom name="arm_collision" class="collision" type="mesh" mesh="arm_mesh" />
+              <geom name="arm_visual" class="visual" type="mesh" mesh="arm_mesh" material="blue" />
+            </body>
+          </worldbody>
+        </mujoco>
+        """.strip(),
+    )
+
+    monkeypatch.setattr("robot2mjcf.postprocess.collisions.trimesh.load", lambda path: trimesh.creation.box())
+
+    update_collisions(
+        mjcf_path,
+        [CollisionGeometry(name="arm", collision_type=CollisionType.SINGLE_SPHERE, sphere_radius=0.1)],
+    )
+
+    root = ET.parse(mjcf_path).getroot()
+    collision_sphere = root.find(".//body[@name='arm']/geom[@name='arm_collision_sphere']")
+    visual_geom = root.find(".//body[@name='arm']/geom[@name='arm_visual']")
+
+    assert collision_sphere is not None
+    assert collision_sphere.attrib["type"] == "sphere"
+    assert visual_geom is not None
+    assert visual_geom.attrib["type"] == "sphere"
+    assert "mesh" not in visual_geom.attrib
+
+
 def test_add_sensors_creates_sites_and_sensor_entries(tmp_path) -> None:
     mjcf_path = write_text(
         tmp_path / "model.xml",
