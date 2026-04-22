@@ -220,9 +220,32 @@ def remove_unused_mesh(mjcf_path: str | Path) -> None:
                     logger.info(f"发现未被引用的文件: {relative_path_str}")
                     mesh_files_to_remove.append(mesh_file_path)
 
+    # 过滤掉仍被保留mesh资产引用的文件（例如视觉与碰撞共用同一文件时，
+    # 碰撞asset被清理不应导致视觉引用的文件被删除）
+    retained_file_paths: set[Path] = set()
+    if mesh_dir_path.exists():
+        for mesh in asset.findall("mesh"):
+            mesh_file = mesh.attrib.get("file")
+            if mesh_file:
+                try:
+                    retained_file_paths.add((mesh_dir_path / mesh_file).resolve())
+                except OSError:
+                    continue
+
     # 删除文件
     deleted_files: list[Path] = []
+    seen_targets: set[Path] = set()
     for file_path in mesh_files_to_remove:
+        try:
+            resolved = file_path.resolve()
+        except OSError:
+            resolved = file_path
+        if resolved in retained_file_paths:
+            logger.debug(f"跳过仍被引用的文件: {file_path}")
+            continue
+        if resolved in seen_targets:
+            continue
+        seen_targets.add(resolved)
         try:
             if file_path.exists():
                 file_path.unlink()
