@@ -54,7 +54,11 @@ urdf-to-mjcf <urdf_path> [options]
 - `-am, --actuator-metadata`: 执行器元数据JSON文件，可指定多个文件，后面的文件会覆盖前面的设置
 - `-a, --appendix`: 附加XML文件，可指定多个文件，按顺序应用
 - `--collision-only`: 仅使用碰撞几何体而不显示视觉外观
-- `--collision-type`: 使用碰撞类型（原样mesh，凸分解，凸包络）
+- `-ct, --collision-type`: 碰撞网格处理模式。可选值：
+  - `mesh`: 保留原始碰撞网格。
+  - `decomposition`: 将碰撞网格分解为多个凸部件。
+  - `convex_hull`: 使用凸包替换碰撞网格。
+  设置 `--skip-mesh-postprocess` 时会忽略该选项。
 - `--log-level`: 日志级别 (默认: INFO级别)
 - `--max-vertices`: 网格中的最大顶点数量 (默认: 200000)
 - `--skip-mesh-postprocess`: 跳过重型 mesh 文件后处理，仅保留轻量 XML 侧后处理步骤

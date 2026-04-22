@@ -54,7 +54,11 @@ urdf-to-mjcf <urdf_path> [options]
 - `-am, --actuator-metadata`: Actuator metadata JSON files, multiple files can be specified, later files override earlier settings
 - `-a, --appendix`: Appendix XML files, multiple files can be specified and applied in order
 - `--collision-only`: Use collision geometry only without visual appearance for visual representation
-- `--collision-type`: Collision type(mesh, convex decomposition, convex hull)
+- `-ct, --collision-type`: Collision mesh processing mode. Choices:
+  - `mesh`: keep the original collision mesh.
+  - `decomposition`: split collision meshes into convex parts.
+  - `convex_hull`: replace collision meshes with convex hulls.
+  This option is ignored when `--skip-mesh-postprocess` is set.
 - `--log-level`: Logging level (default: INFO level)
 - `--max-vertices`: Maximum number of vertices in the mesh (default: 200000)
 - `--skip-mesh-postprocess`: Skip heavy mesh-file post-processing and keep only lightweight XML-side postprocess steps

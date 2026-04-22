@@ -188,12 +188,12 @@ def main() -> None:
         help="If true, use collision geometry without visual appearance for visual representation.",
     )
     parser.add_argument(
-        "-cp",
+        "-ct",
         "--collision-type",
         type=str,
         # 保持原样mesh，进行凸分解，进行凸包络
         choices=["mesh", "decomposition", "convex_hull"],
-        help="The type of collision geometry to use.",
+        help="The collision mesh processing mode to use.",
     )
     parser.add_argument(
         "-m",

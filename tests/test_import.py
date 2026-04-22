@@ -41,4 +41,6 @@ def test_cli_help() -> None:
     )
     assert result.returncode == 0
     assert "Convert a URDF file to an MJCF file" in result.stdout
+    assert "-ct" in result.stdout
+    assert "-cp" not in result.stdout
     assert "--capture-images" in result.stdout
