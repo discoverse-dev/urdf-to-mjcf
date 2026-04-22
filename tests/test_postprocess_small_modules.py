@@ -6,9 +6,9 @@ import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from robot2mjcf.postprocess.base_joint import fix_base_joint
-from robot2mjcf.postprocess.explicit_floor_contacts import add_explicit_floor_contacts
-from robot2mjcf.postprocess.make_degrees import (
+from urdf_to_mjcf.postprocess.base_joint import fix_base_joint
+from urdf_to_mjcf.postprocess.explicit_floor_contacts import add_explicit_floor_contacts
+from urdf_to_mjcf.postprocess.make_degrees import (
     convert_radians_to_degrees,
     make_degrees,
     update_compiler_angle,

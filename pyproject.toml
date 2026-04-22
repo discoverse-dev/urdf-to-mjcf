@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "robot2mjcf"
+name = "urdf-to-mjcf"
 dynamic = ["version"]
 description = "Convert URDF to MJCF with advanced mesh processing"
 readme = "README.md"
@@ -40,15 +40,15 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/discoverse-dev/robot2mjcf"
-Repository = "https://github.com/discoverse-dev/robot2mjcf"
-Issues = "https://github.com/discoverse-dev/robot2mjcf/issues"
+Homepage = "https://github.com/discoverse-dev/urdf-to-mjcf"
+Repository = "https://github.com/discoverse-dev/urdf-to-mjcf"
+Issues = "https://github.com/discoverse-dev/urdf-to-mjcf/issues"
 
 [project.scripts]
-robot2mjcf = "robot2mjcf.cli.convert:main"
-robot2mjcf-mjcf2obj = "robot2mjcf.cli.mjcf2obj:main"
-robot2mjcf-modelpath = "robot2mjcf.cli.model_path:main"
-robot2mjcf-urdfformat = "robot2mjcf.urdf_format:main"
+urdf-to-mjcf = "urdf_to_mjcf.cli.convert:main"
+urdf-to-mjcf-mjcf2obj = "urdf_to_mjcf.cli.mjcf2obj:main"
+urdf-to-mjcf-modelpath = "urdf_to_mjcf.cli.model_path:main"
+urdf-to-mjcf-urdfformat = "urdf_to_mjcf.urdf_format:main"
 
 [dependency-groups]
 dev = [
@@ -59,10 +59,10 @@ dev = [
 ]
 
 [tool.hatch.version]
-path = "src/robot2mjcf/__init__.py"
+path = "src/urdf_to_mjcf/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/robot2mjcf"]
+packages = ["src/urdf_to_mjcf"]
 
 [tool.hatch.build.targets.sdist]
 exclude = [".pkg-smoke", ".uv-cache", ".venv", "dist"]
@@ -85,10 +85,10 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --cov=robot2mjcf --cov-report=term-missing --cov-fail-under=50"
+addopts = "-v --cov=urdf_to_mjcf --cov-report=term-missing --cov-fail-under=50"
 
 [tool.coverage.run]
-source = ["src/robot2mjcf"]
+source = ["src/urdf_to_mjcf"]
 omit = [
     "*/tests/*",
     "*/postprocess/capture.py",

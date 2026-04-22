@@ -4,7 +4,7 @@ SHELL := /bin/sh
 
 UV := uv
 UV_CACHE_DIR ?= .uv-cache
-TARGETS := src/robot2mjcf tests
+TARGETS := src/urdf_to_mjcf tests
 PKG_SMOKE_VENV := .pkg-smoke
 PKG_SMOKE_PYTHON := $(PKG_SMOKE_VENV)/bin/python
 
@@ -39,9 +39,9 @@ test: ## Run pytest
 check: format-check lint typecheck test ## Run core CI checks
 
 cli-smoke: ## Verify the CLI entry points start
-	$(UV) run robot2mjcf --help
-	$(UV) run robot2mjcf-modelpath --help
-	$(UV) run robot2mjcf-mjcf2obj --help
+	$(UV) run urdf-to-mjcf --help
+	$(UV) run urdf-to-mjcf-modelpath --help
+	$(UV) run urdf-to-mjcf-mjcf2obj --help
 
 import-smoke: ## Run the import smoke test
 	$(UV) run pytest tests/test_import.py -q --no-cov
@@ -53,9 +53,9 @@ package-smoke: build ## Build and smoke-test the wheel in a fresh venv
 	rm -rf $(PKG_SMOKE_VENV)
 	$(UV) venv $(PKG_SMOKE_VENV)
 	$(UV) pip install --python $(PKG_SMOKE_PYTHON) dist/*.whl
-	$(PKG_SMOKE_VENV)/bin/robot2mjcf --help
-	$(PKG_SMOKE_VENV)/bin/robot2mjcf-modelpath --help
-	$(PKG_SMOKE_VENV)/bin/robot2mjcf-mjcf2obj --help
+	$(PKG_SMOKE_VENV)/bin/urdf-to-mjcf --help
+	$(PKG_SMOKE_VENV)/bin/urdf-to-mjcf-modelpath --help
+	$(PKG_SMOKE_VENV)/bin/urdf-to-mjcf-mjcf2obj --help
 
 ci: check cli-smoke import-smoke package-smoke ## Run the local CI suite
 
