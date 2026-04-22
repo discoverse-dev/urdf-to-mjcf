@@ -2,18 +2,18 @@
 
 ## Scope
 
-`robot2mjcf` converts URDF robot descriptions into MuJoCo MJCF and can optionally run XML/mesh post-processing steps to make the result easier to simulate.
+`urdf-to-mjcf` converts URDF robot descriptions into MuJoCo MJCF and can optionally run XML/mesh post-processing steps to make the result easier to simulate.
 
 ## Package Layout
 
 ```
-robot2mjcf/
+urdf-to-mjcf/
 ├── __init__.py              # Public API re-export
 ├── urdf_format.py           # Standalone URDF formatting tool
 ├── cli/                     # CLI entry points
-│   ├── convert.py           # Main command (robot2mjcf)
-│   ├── mjcf2obj.py          # Body mesh exporter (robot2mjcf-mjcf2obj)
-│   └── model_path.py        # Model path manager (robot2mjcf-modelpath)
+│   ├── convert.py           # Main command (urdf-to-mjcf)
+│   ├── mjcf2obj.py          # Body mesh exporter (urdf-to-mjcf-mjcf2obj)
+│   └── model_path.py        # Model path manager (urdf-to-mjcf-modelpath)
 ├── core/                    # Data models & foundational utilities
 │   ├── model.py             # Pydantic metadata schemas
 │   ├── geometry.py          # Geometry math (quaternions, transforms)

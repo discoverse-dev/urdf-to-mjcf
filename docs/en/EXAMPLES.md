@@ -11,7 +11,7 @@ This repository ships with two real robot examples:
 
 ```bash
 cd examples/agilex-piper
-robot2mjcf piper.urdf \
+urdf-to-mjcf piper.urdf \
   -o output_mjcf/piper.xml \
   -m metadata/metadata.json \
   -am metadata/actuator.json \
@@ -25,7 +25,7 @@ python -m mujoco.viewer --mjcf=output_mjcf/piper.xml
 A variant with camera mounts is also available:
 
 ```bash
-robot2mjcf piper_with_camera.urdf
+urdf-to-mjcf piper_with_camera.urdf
 ```
 
 This variant includes `.glb` format meshes, which are automatically converted to OBJ during post-processing.
@@ -34,7 +34,7 @@ This variant includes `.glb` format meshes, which are automatically converted to
 
 ```bash
 cd examples/realman-rm65
-robot2mjcf rm65b_eg24c2_description.urdf \
+urdf-to-mjcf rm65b_eg24c2_description.urdf \
   -o output_mjcf/rm65.xml \
   -m metadata/metadata.json \
   -am metadata/actuator.json \

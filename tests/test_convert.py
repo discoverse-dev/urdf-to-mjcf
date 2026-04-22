@@ -8,7 +8,7 @@ from typing import Any
 import mujoco
 import pytest
 
-from robot2mjcf.cli.convert import convert_urdf_to_mjcf
+from urdf_to_mjcf.cli.convert import convert_urdf_to_mjcf
 
 EXAMPLES_DIR = Path(__file__).resolve().parents[1] / "examples"
 

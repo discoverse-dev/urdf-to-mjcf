@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from robot2mjcf.conversion.input import load_conversion_inputs
+from urdf_to_mjcf.conversion.input import load_conversion_inputs
 
 
 def write_text(path: Path, content: str) -> Path:

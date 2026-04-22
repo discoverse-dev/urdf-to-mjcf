@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 
-from robot2mjcf.conversion.pipeline import ConversionContext, assemble_robot_scene
-from robot2mjcf.core.geometry import ParsedJointParams
-from robot2mjcf.core.model import ActuatorMetadata
+from urdf_to_mjcf.conversion.pipeline import ConversionContext, assemble_robot_scene
+from urdf_to_mjcf.core.geometry import ParsedJointParams
+from urdf_to_mjcf.core.model import ActuatorMetadata
 
 
 def test_assemble_robot_scene_orchestrates_body_assets_and_mesh_pipeline(tmp_path, monkeypatch) -> None:
@@ -29,31 +29,31 @@ def test_assemble_robot_scene_orchestrates_body_assets_and_mesh_pipeline(tmp_pat
     calls: list[tuple[str, object]] = []
 
     monkeypatch.setattr(
-        "robot2mjcf.conversion.pipeline.resolve_workspace_search_paths",
+        "urdf_to_mjcf.conversion.pipeline.resolve_workspace_search_paths",
         lambda urdf_path: [tmp_path / "ws"],
     )
     monkeypatch.setattr(
-        "robot2mjcf.conversion.pipeline.build_robot_body_tree",
+        "urdf_to_mjcf.conversion.pipeline.build_robot_body_tree",
         lambda *args, **kwargs: (robot_body, actuator_joints),
     )
     monkeypatch.setattr(
-        "robot2mjcf.conversion.pipeline.collect_single_obj_materials",
+        "urdf_to_mjcf.conversion.pipeline.collect_single_obj_materials",
         lambda *args, **kwargs: {"mat": material_marker},
     )
     monkeypatch.setattr(
-        "robot2mjcf.conversion.pipeline.add_assets",
+        "urdf_to_mjcf.conversion.pipeline.add_assets",
         lambda mjcf_root, materials, obj_materials: calls.append(("assets", obj_materials)),
     )
     monkeypatch.setattr(
-        "robot2mjcf.conversion.pipeline.add_actuators",
+        "urdf_to_mjcf.conversion.pipeline.add_actuators",
         lambda mjcf_root, joints, metadata: calls.append(("actuators", [joint.name for joint in joints])),
     )
     monkeypatch.setattr(
-        "robot2mjcf.conversion.pipeline.add_mimic_equality_constraints",
+        "urdf_to_mjcf.conversion.pipeline.add_mimic_equality_constraints",
         lambda mjcf_root, mimic_constraints: calls.append(("mimic", mimic_constraints)),
     )
     monkeypatch.setattr(
-        "robot2mjcf.conversion.pipeline.copy_mesh_assets",
+        "urdf_to_mjcf.conversion.pipeline.copy_mesh_assets",
         lambda *args, **kwargs: type(
             "CopyResult",
             (),
@@ -64,7 +64,7 @@ def test_assemble_robot_scene_orchestrates_body_assets_and_mesh_pipeline(tmp_pat
         )(),
     )
     monkeypatch.setattr(
-        "robot2mjcf.conversion.pipeline.add_mesh_assets_to_xml",
+        "urdf_to_mjcf.conversion.pipeline.add_mesh_assets_to_xml",
         lambda mjcf_root, mesh_assets, *, urdf_dir: calls.append(("mesh_xml", mesh_assets)),
     )
 

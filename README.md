@@ -1,4 +1,4 @@
-# robot2mjcf
+# urdf-to-mjcf
 
 URDF to MJCF conversion tool with support for STL, OBJ, DAE, GLB formats, automatic recognition of mimic tags in URDF, configurable joint actuators, and one-click generation of sim-ready MJCF files.
 
@@ -11,20 +11,20 @@ URDF to MJCF conversion tool with support for STL, OBJ, DAE, GLB formats, automa
 ### Install from PyPI
 
 ```bash
-pip install robot2mjcf
+pip install urdf-to-mjcf
 ```
 
 Or with `uv`:
 
 ```bash
-uv pip install robot2mjcf
+uv pip install urdf-to-mjcf
 ```
 
 ### Install from Source
 
 ```bash
-git clone https://github.com/discoverse-dev/robot2mjcf.git
-cd robot2mjcf
+git clone https://github.com/discoverse-dev/urdf-to-mjcf.git
+cd urdf-to-mjcf
 uv pip install -e .
 ```
 
@@ -34,14 +34,14 @@ uv pip install -e .
 
 ```bash
 cd /path/to/your/robot-description/
-robot2mjcf input.urdf --output mjcf/output.xml
+urdf-to-mjcf input.urdf --output mjcf/output.xml
 # Note: Do not place the generated .xml file in the same directory as the urdf, you can add mjcf/output.xml as shown above
 ```
 
 ### Command Line Arguments
 
 ```bash
-robot2mjcf <urdf_path> [options]
+urdf-to-mjcf <urdf_path> [options]
 ```
 
 #### Required Arguments
@@ -70,7 +70,7 @@ robot2mjcf <urdf_path> [options]
 ```bash
 # agilex-piper robot
 cd examples/agilex-piper
-robot2mjcf piper.urdf \
+urdf-to-mjcf piper.urdf \
   -o mjcf/piper.xml \
   -m metadata/metadata.json \
   -am metadata/actuator.json \
@@ -81,7 +81,7 @@ python -m mujoco.viewer --mjcf=mjcf/piper.xml
 
 # realman-rm65 robotic arm
 cd examples/realman-rm65
-robot2mjcf rm65b_eg24c2_description.urdf \
+urdf-to-mjcf rm65b_eg24c2_description.urdf \
   -o mjcf/rm65.xml \
   -m metadata/metadata.json \
   -am metadata/actuator.json \
@@ -115,16 +115,16 @@ We provide a convenient command-line tool to manage the `URDF2MJCF_MODEL_PATH` e
 
 ```bash
 # Scan a workspace for ROS description packages and generate export command
-robot2mjcf-modelpath scan /path/to/your/workspace
+urdf-to-mjcf-modelpath scan /path/to/your/workspace
 
 # Scan multiple directories
-robot2mjcf-modelpath scan /path/to/workspace1 /path/to/workspace2
+urdf-to-mjcf-modelpath scan /path/to/workspace1 /path/to/workspace2
 
 # List current paths in the environment variable
-robot2mjcf-modelpath list
+urdf-to-mjcf-modelpath list
 
 # Generate command to unset the environment variable
-robot2mjcf-modelpath unset
+urdf-to-mjcf-modelpath unset
 ```
 
 **Features:**

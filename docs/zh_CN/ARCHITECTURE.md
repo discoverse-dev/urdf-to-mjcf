@@ -2,18 +2,18 @@
 
 ## 项目定位
 
-`robot2mjcf` 将 URDF 机器人描述文件转换为 MuJoCo MJCF 格式，并可选地执行 XML/网格后处理步骤，使结果更易于仿真。
+`urdf-to-mjcf` 将 URDF 机器人描述文件转换为 MuJoCo MJCF 格式，并可选地执行 XML/网格后处理步骤，使结果更易于仿真。
 
 ## 包结构
 
 ```
-robot2mjcf/
+urdf-to-mjcf/
 ├── __init__.py              # 公共 API 导出
 ├── urdf_format.py           # 独立的 URDF 格式化工具
 ├── cli/                     # CLI 入口
-│   ├── convert.py           # 主命令 (robot2mjcf)
-│   ├── mjcf2obj.py          # Body 网格导出器 (robot2mjcf-mjcf2obj)
-│   └── model_path.py        # 模型路径管理器 (robot2mjcf-modelpath)
+│   ├── convert.py           # 主命令 (urdf-to-mjcf)
+│   ├── mjcf2obj.py          # Body 网格导出器 (urdf-to-mjcf-mjcf2obj)
+│   └── model_path.py        # 模型路径管理器 (urdf-to-mjcf-modelpath)
 ├── core/                    # 数据模型与基础工具
 │   ├── model.py             # Pydantic 元数据模型
 │   ├── geometry.py          # 几何数学（四元数、变换）

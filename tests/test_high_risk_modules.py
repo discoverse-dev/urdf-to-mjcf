@@ -7,8 +7,8 @@ from pathlib import Path
 
 import trimesh
 
-from robot2mjcf.cli.mjcf2obj import export_mjcf_bodies
-from robot2mjcf.core.model import (
+from urdf_to_mjcf.cli.mjcf2obj import export_mjcf_bodies
+from urdf_to_mjcf.core.model import (
     CollisionGeometry,
     CollisionType,
     ConversionMetadata,
@@ -17,10 +17,10 @@ from robot2mjcf.core.model import (
     SiteMetadata,
     TouchSensor,
 )
-from robot2mjcf.postprocess.add_sensors import add_sensors
-from robot2mjcf.postprocess.collisions import update_collisions
-from robot2mjcf.postprocess.convex_collision import convex_collision_assets
-from robot2mjcf.postprocess.convex_decomposition import convex_decomposition_assets
+from urdf_to_mjcf.postprocess.add_sensors import add_sensors
+from urdf_to_mjcf.postprocess.collisions import update_collisions
+from urdf_to_mjcf.postprocess.convex_collision import convex_collision_assets
+from urdf_to_mjcf.postprocess.convex_decomposition import convex_decomposition_assets
 
 
 def write_text(path: Path, content: str) -> Path:
@@ -89,7 +89,7 @@ def test_convex_collision_assets_replaces_collision_geom(tmp_path, monkeypatch) 
     )
 
     monkeypatch.setattr(
-        "robot2mjcf.postprocess.convex_collision.process_single_mesh",
+        "urdf_to_mjcf.postprocess.convex_collision.process_single_mesh",
         lambda mesh_info: ("arm_mesh", [("arm_mesh_convex", "arm_mesh_convex/arm_mesh_convex.stl")]),
     )
 
@@ -118,7 +118,7 @@ def test_convex_decomposition_assets_splits_collision_geom(tmp_path, monkeypatch
     )
 
     monkeypatch.setattr(
-        "robot2mjcf.postprocess.convex_decomposition.process_single_mesh",
+        "urdf_to_mjcf.postprocess.convex_decomposition.process_single_mesh",
         lambda mesh_info: (
             "arm_mesh",
             [
@@ -154,7 +154,7 @@ def test_update_collisions_replaces_mesh_with_box(tmp_path, monkeypatch) -> None
         """.strip(),
     )
 
-    monkeypatch.setattr("robot2mjcf.postprocess.collisions.trimesh.load", lambda path: trimesh.creation.box())
+    monkeypatch.setattr("urdf_to_mjcf.postprocess.collisions.trimesh.load", lambda path: trimesh.creation.box())
 
     update_collisions(
         mjcf_path,
@@ -191,7 +191,7 @@ def test_update_collisions_parallel_capsules_adds_capsule_pairs(tmp_path, monkey
         """.strip(),
     )
 
-    monkeypatch.setattr("robot2mjcf.postprocess.collisions.trimesh.load", lambda path: trimesh.creation.box())
+    monkeypatch.setattr("urdf_to_mjcf.postprocess.collisions.trimesh.load", lambda path: trimesh.creation.box())
 
     update_collisions(
         mjcf_path,
@@ -226,7 +226,7 @@ def test_update_collisions_corner_spheres_replace_visual_mesh(tmp_path, monkeypa
         """.strip(),
     )
 
-    monkeypatch.setattr("robot2mjcf.postprocess.collisions.trimesh.load", lambda path: trimesh.creation.box())
+    monkeypatch.setattr("urdf_to_mjcf.postprocess.collisions.trimesh.load", lambda path: trimesh.creation.box())
 
     update_collisions(
         mjcf_path,
@@ -261,7 +261,7 @@ def test_update_collisions_single_sphere_updates_visual_geom(tmp_path, monkeypat
         """.strip(),
     )
 
-    monkeypatch.setattr("robot2mjcf.postprocess.collisions.trimesh.load", lambda path: trimesh.creation.box())
+    monkeypatch.setattr("urdf_to_mjcf.postprocess.collisions.trimesh.load", lambda path: trimesh.creation.box())
 
     update_collisions(
         mjcf_path,

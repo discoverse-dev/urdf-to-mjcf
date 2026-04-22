@@ -9,9 +9,9 @@ uv sync --all-groups
 ## Required Checks
 
 ```bash
-uv run ruff format --check src/robot2mjcf tests
-uv run ruff check src/robot2mjcf tests
-uv run mypy src/robot2mjcf tests
+uv run ruff format --check src/urdf_to_mjcf tests
+uv run ruff check src/urdf_to_mjcf tests
+uv run mypy src/urdf_to_mjcf tests
 uv run pytest
 uv build
 ```
@@ -28,5 +28,5 @@ uv build
 
 When changing converter behavior:
 
-- run the real example regressions in [`tests/test_convert.py`](/Users/jiayufei/ws/robot2mjcf/tests/test_convert.py)
+- run the real example regressions in [`tests/test_convert.py`](/Users/jiayufei/ws/urdf-to-mjcf/tests/test_convert.py)
 - compare semantic output, not only raw XML text

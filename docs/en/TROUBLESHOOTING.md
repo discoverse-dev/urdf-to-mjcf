@@ -6,7 +6,7 @@ Checks:
 
 - Verify the package exists and contains `package.xml` + `CMakeLists.txt`.
 - Set `URDF2MJCF_MODEL_PATH` to the directory containing your packages.
-- Try `robot2mjcf-modelpath scan /path/to/workspace` to auto-detect packages.
+- Try `urdf-to-mjcf-modelpath scan /path/to/workspace` to auto-detect packages.
 
 Related code: `core/package_resolver.py`, `cli/model_path.py`.
 
@@ -17,7 +17,7 @@ The converter intentionally rejects writing the MJCF into the same directory as 
 Use a separate output tree:
 
 ```bash
-robot2mjcf robot.urdf --output output_mjcf/robot.xml
+urdf-to-mjcf robot.urdf --output output_mjcf/robot.xml
 ```
 
 ## Mesh processing fails on one machine only
@@ -40,8 +40,8 @@ MuJoCo does not natively support GLB/GLTF format. The post-processing pipeline a
 ## Static checks for contributors
 
 ```bash
-uv run ruff format --check src/robot2mjcf tests
-uv run ruff check src/robot2mjcf tests
-uv run mypy src/robot2mjcf tests
+uv run ruff format --check src/urdf_to_mjcf tests
+uv run ruff check src/urdf_to_mjcf tests
+uv run mypy src/urdf_to_mjcf tests
 uv run pytest
 ```

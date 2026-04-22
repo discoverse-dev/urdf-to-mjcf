@@ -11,7 +11,7 @@
 
 ```bash
 cd examples/agilex-piper
-robot2mjcf piper.urdf \
+urdf-to-mjcf piper.urdf \
   -o output_mjcf/piper.xml \
   -m metadata/metadata.json \
   -am metadata/actuator.json \
@@ -25,7 +25,7 @@ python -m mujoco.viewer --mjcf=output_mjcf/piper.xml
 还有一个带相机支架的变体：
 
 ```bash
-robot2mjcf piper_with_camera.urdf
+urdf-to-mjcf piper_with_camera.urdf
 ```
 
 该变体包含 `.glb` 格式的网格，后处理阶段会自动转换为 OBJ。
@@ -34,7 +34,7 @@ robot2mjcf piper_with_camera.urdf
 
 ```bash
 cd examples/realman-rm65
-robot2mjcf rm65b_eg24c2_description.urdf \
+urdf-to-mjcf rm65b_eg24c2_description.urdf \
   -o output_mjcf/rm65.xml \
   -m metadata/metadata.json \
   -am metadata/actuator.json \

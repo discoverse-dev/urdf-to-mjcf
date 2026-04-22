@@ -1,7 +1,7 @@
 *.DS_Store
 output/
 **/mjcf/
-!robot2mjcf/
+!urdf_to_mjcf/
 **merged_model/
 align_stp/models/**
 *.stp

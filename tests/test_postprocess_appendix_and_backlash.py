@@ -5,7 +5,7 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from robot2mjcf.postprocess.add_appendix import (
+from urdf_to_mjcf.postprocess.add_appendix import (
     add_appendix,
     add_filtered_contact_constraints,
     add_filtered_equality_constraints,
@@ -18,7 +18,7 @@ from robot2mjcf.postprocess.add_appendix import (
     validate_equality_constraints,
     validate_sensor_constraints,
 )
-from robot2mjcf.postprocess.add_backlash import (
+from urdf_to_mjcf.postprocess.add_backlash import (
     add_backlash,
     add_backlash_default,
     add_backlash_joints,
