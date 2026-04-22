@@ -48,6 +48,7 @@ Issues = "https://github.com/discoverse-dev/robot2mjcf/issues"
 robot2mjcf = "robot2mjcf.cli.convert:main"
 robot2mjcf-mjcf2obj = "robot2mjcf.cli.mjcf2obj:main"
 robot2mjcf-modelpath = "robot2mjcf.cli.model_path:main"
+robot2mjcf-urdfformat = "robot2mjcf.urdf_format:main"
 
 [dependency-groups]
 dev = [

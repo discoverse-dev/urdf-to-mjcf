@@ -71,13 +71,20 @@ def test_resolve_mesh_source_path_handles_package_absolute_and_relative(tmp_path
         urdf_dir=urdf_dir,
         workspace_search_paths=[],
     )
+    parent_relative_source, parent_relative_subpath = resolve_mesh_source_path(
+        "../meshes/umi_gripper/umi_base.STL",
+        urdf_dir=urdf_dir,
+        workspace_search_paths=[],
+    )
 
     assert package_source == package_root / "meshes/part.obj"
     assert package_subpath == "demo_pkg/meshes/part.obj"
     assert absolute_source == absolute_mesh
-    assert absolute_subpath == "../shared/mesh.stl"
+    assert absolute_subpath == "shared/mesh.stl"
     assert relative_source == (urdf_dir / "meshes/local.obj").resolve()
     assert relative_subpath == "meshes/local.obj"
+    assert parent_relative_source == (urdf_dir / "../meshes/umi_gripper/umi_base.STL").resolve()
+    assert parent_relative_subpath == "meshes/umi_gripper/umi_base.STL"
 
 
 def test_collect_single_obj_materials_extracts_named_material(tmp_path) -> None:
@@ -175,6 +182,7 @@ def test_add_mesh_assets_to_xml_normalizes_paths(tmp_path) -> None:
             "package_mesh": "package://demo_pkg/meshes/part.obj",
             "absolute_mesh": str(tmp_path / "shared" / "mesh.stl"),
             "relative_mesh": "meshes/local.obj",
+            "parent_relative_mesh": "../meshes/umi_gripper/part.STL",
         },
         urdf_dir=tmp_path / "robot",
     )
@@ -183,8 +191,9 @@ def test_add_mesh_assets_to_xml_normalizes_paths(tmp_path) -> None:
 
     assert mesh_files == {
         "package_mesh": "meshes/demo_pkg/meshes/part.obj",
-        "absolute_mesh": "meshes/../shared/mesh.stl",
+        "absolute_mesh": "meshes/shared/mesh.stl",
         "relative_mesh": "meshes/meshes/local.obj",
+        "parent_relative_mesh": "meshes/meshes/umi_gripper/part.STL",
     }
 
 

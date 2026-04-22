@@ -40,6 +40,23 @@ def resolve_workspace_search_paths(urdf_path: Path) -> list[Path]:
     return workspace_search_paths
 
 
+def _strip_parent_prefix(raw: str, *, fallback: str) -> str:
+    """Normalize a relative sub-path by collapsing '.' and stripping leading '..' components.
+
+    Keeping '..' in the sub-path causes target paths like ``out/meshes/../meshes/foo.stl``
+    to be emitted into the copied tree and the MJCF file attribute, which is fragile and
+    leaks the URDF's directory layout. Stripping the escaping prefix keeps the resulting
+    path anchored inside the mesh output directory while preserving the meaningful tail.
+    """
+    normalized = os.path.normpath(raw)
+    if normalized in (".", ""):
+        return fallback
+    parts = [p for p in Path(normalized).parts if p not in ("..", os.sep, "/")]
+    if not parts:
+        return fallback
+    return str(Path(*parts))
+
+
 def resolve_mesh_source_path(
     filename: str, *, urdf_dir: Path, workspace_search_paths: list[Path]
 ) -> tuple[Path | None, str]:
@@ -56,9 +73,13 @@ def resolve_mesh_source_path(
         return source_path, f"{package_name}/{sub_path}"
 
     if filename.startswith("/"):
-        return Path(filename), os.path.relpath(filename, urdf_dir)
+        source_path = Path(filename)
+        raw_sub_path = os.path.relpath(filename, urdf_dir)
+    else:
+        source_path = (urdf_dir / filename).resolve()
+        raw_sub_path = filename
 
-    return (urdf_dir / filename).resolve(), filename
+    return source_path, _strip_parent_prefix(raw_sub_path, fallback=Path(filename).name)
 
 
 def collect_single_obj_materials(
@@ -186,12 +207,11 @@ def add_mesh_assets_to_xml(mjcf_root: ET.Element, mesh_assets: dict[str, str], *
         asset_elem = ET.SubElement(mjcf_root, "asset")
 
     for mesh_name, filename in mesh_assets.items():
-        if "package://" in filename:
-            package_path = filename[len("package://") :]
-            normalized_filename = f"meshes/{package_path}"
-        elif filename.startswith("/"):
-            normalized_filename = f"meshes/{os.path.relpath(filename, urdf_dir)}"
-        else:
-            normalized_filename = f"meshes/{filename}"
+        _, sub_path = resolve_mesh_source_path(
+            filename,
+            urdf_dir=urdf_dir,
+            workspace_search_paths=[],
+        )
+        normalized_filename = f"meshes/{sub_path}"
 
         ET.SubElement(asset_elem, "mesh", attrib={"name": mesh_name, "file": normalized_filename})
